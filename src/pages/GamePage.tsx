@@ -12,16 +12,42 @@ import GameOverScreen from '@/components/game/GameOverScreen';
 const GamePage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { gameState, currentPlayer, nextPhase, nextPlayerTurn, skipVoting, getCurrentTurnPlayer } = useGame();
+  const { gameState, currentPlayer, nextPhase, nextPlayerTurn, skipVoting, getCurrentTurnPlayer, loadGame, isLoading } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
 
+  // Try to load game if not in state
   useEffect(() => {
-    if (!gameState || gameState.id !== gameId) {
+    if (!gameState && gameId) {
+      const savedPlayerId = localStorage.getItem('bunker_player_id');
+      if (savedPlayerId) {
+        loadGame(gameId, savedPlayerId).then((success) => {
+          if (!success) {
+            navigate('/');
+          }
+        });
+      } else {
+        navigate('/');
+      }
+    }
+  }, [gameState, gameId, loadGame, navigate]);
+
+  useEffect(() => {
+    if (gameState && gameState.id !== gameId) {
       navigate('/');
     }
   }, [gameState, gameId, navigate]);
 
-  if (!gameState || !currentPlayer) return null;
+  // Show loading if loading or no game state yet
+  if (isLoading || !gameState || !currentPlayer) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Shield className="w-12 h-12 text-primary animate-pulse mx-auto mb-4" />
+          <p className="text-muted-foreground">Загрузка игры...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (gameState.phase === 'gameover') {
     return <GameOverScreen />;

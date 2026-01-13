@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Trophy, Skull, Home, RefreshCw } from 'lucide-react';
 
 const GameOverScreen = () => {
-  const { gameState } = useGame();
+  const { gameState, clearSession } = useGame();
   const navigate = useNavigate();
 
   if (!gameState) return null;
@@ -13,9 +13,7 @@ const GameOverScreen = () => {
   const eliminated = gameState.players.filter(p => p.isEliminated);
 
   const handleGoHome = () => {
-    // Clear session storage
-    localStorage.removeItem('bunker_game_id');
-    localStorage.removeItem('bunker_player_id');
+    clearSession();
     navigate('/');
   };
 
