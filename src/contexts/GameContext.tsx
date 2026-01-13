@@ -13,10 +13,13 @@ interface GameContextType {
   startGame: () => Promise<void>;
   revealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => Promise<void>;
   nextPhase: () => Promise<void>;
+  nextPlayerTurn: () => Promise<void>;
   castVote: (voterId: string, targetId: string) => Promise<void>;
   eliminatePlayer: (playerId: string) => Promise<void>;
+  processVotingResults: () => Promise<void>;
   skipVoting: () => Promise<void>;
   setCurrentPlayerId: (playerId: string) => void;
+  getCurrentTurnPlayer: () => Player | null;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -196,6 +199,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     await db.startGame(gameState.id);
   }, [gameState, db]);
 
+  // Get current turn player
+  const getCurrentTurnPlayer = useCallback((): Player | null => {
+    if (!gameState) return null;
+    const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+    if (gameState.currentPlayerIndex >= alivePlayers.length) return null;
+    return alivePlayers[gameState.currentPlayerIndex];
+  }, [gameState]);
+
   // Reveal a characteristic
   const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics) => {
     const player = gameState?.players.find(p => p.id === playerId);
@@ -203,30 +214,109 @@ export function GameProvider({ children }: { children: ReactNode }) {
     await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
   }, [gameState, db]);
 
+  // Move to next player turn
+  const nextPlayerTurn = useCallback(async () => {
+    if (!gameState) return;
+    
+    const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+    const nextIndex = gameState.currentPlayerIndex + 1;
+    
+    // If all players have had their turn, move to discussion phase
+    if (nextIndex >= alivePlayers.length) {
+      await db.updateGamePhase(gameState.id, { 
+        phase: 'discussion',
+        current_player_index: 0
+      });
+    } else {
+      await db.updateGamePhase(gameState.id, { 
+        current_player_index: nextIndex 
+      });
+    }
+  }, [gameState, db]);
+
   // Move to next phase
   const nextPhase = useCallback(async () => {
     if (!gameState) return;
 
-    const phases: GamePhase[] = ['lobby', 'introduction', 'turn', 'discussion', 'defense', 'voting', 'results', 'farewell'];
-    const currentIndex = phases.indexOf(gameState.phase);
-    let nextPhaseValue = phases[currentIndex + 1] || 'turn';
-
-    // Check if game should end
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+    
+    // Check if game should end
     if (alivePlayers.length <= gameState.bunkerSlots) {
-      nextPhaseValue = 'gameover';
+      await db.updateGamePhase(gameState.id, { phase: 'gameover' });
+      return;
     }
 
-    // Reset for new round after farewell
-    if (gameState.phase === 'farewell') {
+    // Phase progression logic
+    switch (gameState.phase) {
+      case 'introduction':
+        await db.updateGamePhase(gameState.id, { 
+          phase: 'turn',
+          current_player_index: 0
+        });
+        break;
+      case 'turn':
+        await db.updateGamePhase(gameState.id, { phase: 'discussion' });
+        break;
+      case 'discussion':
+        // First round - can skip voting
+        if (gameState.currentRound === 1) {
+          await db.updateGamePhase(gameState.id, { phase: 'defense' });
+        } else {
+          await db.updateGamePhase(gameState.id, { phase: 'defense' });
+        }
+        break;
+      case 'defense':
+        await db.updateGamePhase(gameState.id, { phase: 'voting' });
+        break;
+      case 'voting':
+        await db.updateGamePhase(gameState.id, { phase: 'results' });
+        break;
+      case 'results':
+        await db.updateGamePhase(gameState.id, { phase: 'farewell' });
+        break;
+      case 'farewell':
+        // Start new round
+        await db.resetVotes(gameState.id);
+        await db.updateGamePhase(gameState.id, {
+          phase: 'turn',
+          current_round: gameState.currentRound + 1,
+          current_player_index: 0,
+        });
+        break;
+      default:
+        break;
+    }
+  }, [gameState, db]);
+
+  // Process voting results
+  const processVotingResults = useCallback(async () => {
+    if (!gameState) return;
+    
+    const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+    const maxVotes = Math.max(...alivePlayers.map(p => p.votesAgainst));
+    
+    if (maxVotes === 0) {
+      // No votes cast, skip elimination
+      await db.updateGamePhase(gameState.id, { phase: 'turn' });
       await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, {
-        phase: 'turn',
         current_round: gameState.currentRound + 1,
         current_player_index: 0,
       });
+      return;
+    }
+    
+    // Find players with max votes (could be a tie)
+    const playersWithMaxVotes = alivePlayers.filter(p => p.votesAgainst === maxVotes);
+    
+    if (playersWithMaxVotes.length === 1) {
+      // Clear winner (loser), eliminate them
+      await db.eliminatePlayer(playersWithMaxVotes[0].id);
+      await db.updateGamePhase(gameState.id, { phase: 'farewell' });
     } else {
-      await db.updateGamePhase(gameState.id, { phase: nextPhaseValue });
+      // Tie - for now eliminate the first one, but ideally would have revote
+      await db.eliminatePlayer(playersWithMaxVotes[0].id);
+      await db.updateGamePhase(gameState.id, { phase: 'farewell' });
     }
   }, [gameState, db]);
 
@@ -244,8 +334,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Skip voting (first round only)
   const skipVoting = useCallback(async () => {
     if (!gameState || gameState.currentRound !== 1) return;
-    await nextPhase();
-  }, [gameState, nextPhase]);
+    await db.resetVotes(gameState.id);
+    await db.updateGamePhase(gameState.id, {
+      phase: 'turn',
+      current_round: gameState.currentRound + 1,
+      current_player_index: 0,
+    });
+  }, [gameState, db]);
 
   // Set current player ID
   const setCurrentPlayerId = useCallback((playerId: string) => {
@@ -276,10 +371,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
       startGame,
       revealCharacteristic,
       nextPhase,
+      nextPlayerTurn,
       castVote,
       eliminatePlayer,
+      processVotingResults,
       skipVoting,
       setCurrentPlayerId,
+      getCurrentTurnPlayer,
     }}>
       {children}
     </GameContext.Provider>

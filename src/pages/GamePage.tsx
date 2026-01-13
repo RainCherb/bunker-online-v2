@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
-import { Shield, AlertTriangle, Clock, Users, Volume2 } from 'lucide-react';
+import { Shield, Clock, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import PlayerCard from '@/components/game/PlayerCard';
 import CharacterPanel from '@/components/game/CharacterPanel';
@@ -12,7 +12,7 @@ import GameOverScreen from '@/components/game/GameOverScreen';
 const GamePage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { gameState, currentPlayer, nextPhase } = useGame();
+  const { gameState, currentPlayer, nextPhase, nextPlayerTurn, skipVoting, getCurrentTurnPlayer } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
 
   useEffect(() => {
@@ -29,6 +29,10 @@ const GamePage = () => {
 
   const alivePlayers = gameState.players.filter(p => !p.isEliminated);
   const isVotingPhase = gameState.phase === 'voting' || gameState.phase === 'defense';
+  const isResultsPhase = gameState.phase === 'results';
+  const isTurnPhase = gameState.phase === 'turn';
+  const currentTurnPlayer = getCurrentTurnPlayer();
+  const isMyTurn = currentTurnPlayer?.id === currentPlayer.id;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -88,12 +92,50 @@ const GamePage = () => {
                   {getPhaseTitle(gameState.phase)}
                 </h2>
                 <p className="text-muted-foreground mt-2">
-                  {getPhaseDescription(gameState.phase)}
+                  {getPhaseDescription(gameState.phase, currentTurnPlayer?.name)}
                 </p>
+                
+                {/* Current turn indicator */}
+                {isTurnPhase && currentTurnPlayer && (
+                  <motion.div
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    className={`mt-4 inline-block px-6 py-3 rounded-lg ${
+                      isMyTurn 
+                        ? 'bg-primary/20 border-2 border-primary text-primary' 
+                        : 'bg-muted/50 border border-border'
+                    }`}
+                  >
+                    <span className="font-display">
+                      {isMyTurn ? '🎯 ВАШ ХОД — РАСКРОЙТЕ ХАРАКТЕРИСТИКУ' : `Ходит: ${currentTurnPlayer.name}`}
+                    </span>
+                  </motion.div>
+                )}
               </motion.div>
 
               {/* Voting Panel */}
-              {isVotingPhase && <VotingPanel />}
+              {(isVotingPhase || isResultsPhase) && <VotingPanel />}
+
+              {/* First Round Skip Voting Option */}
+              {gameState.phase === 'discussion' && gameState.currentRound === 1 && currentPlayer.isHost && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bunker-card mb-6 text-center"
+                >
+                  <p className="text-muted-foreground mb-4">
+                    В первом раунде голосование можно пропустить
+                  </p>
+                  <div className="flex gap-4 justify-center">
+                    <button onClick={skipVoting} className="bunker-button-secondary">
+                      Пропустить голосование
+                    </button>
+                    <button onClick={nextPhase} className="bunker-button">
+                      Перейти к защите
+                    </button>
+                  </div>
+                </motion.div>
+              )}
 
               {/* Players Grid */}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -103,7 +145,7 @@ const GamePage = () => {
                     player={player}
                     index={index}
                     isCurrentPlayer={player.id === currentPlayer.id}
-                    isCurrentTurn={gameState.currentPlayerIndex === index}
+                    isCurrentTurn={currentTurnPlayer?.id === player.id && isTurnPhase}
                   />
                 ))}
               </div>
@@ -115,12 +157,7 @@ const GamePage = () => {
                   animate={{ opacity: 1 }}
                   className="mt-8 text-center"
                 >
-                  <button
-                    onClick={nextPhase}
-                    className="bunker-button"
-                  >
-                    Следующая фаза
-                  </button>
+                  {getHostControls(gameState.phase, nextPhase, nextPlayerTurn)}
                 </motion.div>
               )}
             </div>
@@ -147,25 +184,58 @@ function getPhaseTitle(phase: string): string {
     introduction: 'ЗНАКОМСТВО',
     turn: 'ХОД ИГРОКОВ',
     discussion: 'ОБСУЖДЕНИЕ',
-    defense: 'ОПРАВДАНИЕ',
+    defense: 'ЗАЩИТНАЯ РЕЧЬ',
     voting: 'ГОЛОСОВАНИЕ',
-    results: 'РЕЗУЛЬТАТЫ',
+    results: 'РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ',
     farewell: 'ПРОЩАЛЬНАЯ РЕЧЬ',
   };
   return titles[phase] || phase.toUpperCase();
 }
 
-function getPhaseDescription(phase: string): string {
+function getPhaseDescription(phase: string, currentPlayerName?: string): string {
   const descriptions: Record<string, string> = {
     introduction: 'Игроки представляют своих персонажей и раскрывают профессию',
-    turn: 'Каждый игрок по очереди раскрывает характеристики своего персонажа',
-    discussion: 'Общее обсуждение — 1 минута на всех игроков',
-    defense: 'Время для оправдательных речей — 30 секунд каждому',
-    voting: 'Голосование за исключение игрока из лагеря',
+    turn: currentPlayerName ? `Сейчас ходит: ${currentPlayerName}` : 'Каждый игрок раскрывает характеристики своего персонажа',
+    discussion: 'Общее обсуждение — обсудите, кого изгнать',
+    defense: 'Время для защитных речей — каждый может высказаться',
+    voting: 'Голосование за исключение игрока из бункера',
     results: 'Подведение итогов голосования',
-    farewell: 'Прощальная речь изгнанного игрока — 15 секунд',
+    farewell: 'Прощальная речь изгнанного игрока',
   };
   return descriptions[phase] || '';
+}
+
+function getHostControls(phase: string, nextPhase: () => void, nextPlayerTurn: () => void) {
+  switch (phase) {
+    case 'introduction':
+      return (
+        <button onClick={nextPhase} className="bunker-button">
+          Начать раунд
+        </button>
+      );
+    case 'turn':
+      return (
+        <button onClick={nextPlayerTurn} className="bunker-button">
+          Следующий игрок
+        </button>
+      );
+    case 'discussion':
+      return null; // Controls are above
+    case 'defense':
+      return (
+        <button onClick={nextPhase} className="bunker-button">
+          Начать голосование
+        </button>
+      );
+    case 'farewell':
+      return (
+        <button onClick={nextPhase} className="bunker-button">
+          Следующий раунд
+        </button>
+      );
+    default:
+      return null;
+  }
 }
 
 export default GamePage;
