@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Trophy, Skull, Home } from 'lucide-react';
+import { Shield, Trophy, Skull, Home, RefreshCw } from 'lucide-react';
 
 const GameOverScreen = () => {
   const { gameState } = useGame();
@@ -11,6 +11,13 @@ const GameOverScreen = () => {
 
   const survivors = gameState.players.filter(p => !p.isEliminated);
   const eliminated = gameState.players.filter(p => p.isEliminated);
+
+  const handleGoHome = () => {
+    // Clear session storage
+    localStorage.removeItem('bunker_game_id');
+    localStorage.removeItem('bunker_player_id');
+    navigate('/');
+  };
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center">
@@ -38,6 +45,30 @@ const GameOverScreen = () => {
           <p className="text-xl text-muted-foreground">
             Двери бункера закрыты. Судьба решена.
           </p>
+        </motion.div>
+
+        {/* Game Summary */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bunker-card mb-8 text-center"
+        >
+          <h2 className="font-display text-xl text-secondary mb-4">ИТОГИ</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <div className="text-3xl font-display text-primary">{gameState.currentRound}</div>
+              <div className="text-sm text-muted-foreground">Раундов</div>
+            </div>
+            <div>
+              <div className="text-3xl font-display text-success">{survivors.length}</div>
+              <div className="text-sm text-muted-foreground">Выжило</div>
+            </div>
+            <div>
+              <div className="text-3xl font-display text-destructive">{eliminated.length}</div>
+              <div className="text-sm text-muted-foreground">Изгнано</div>
+            </div>
+          </div>
         </motion.div>
 
         {/* Survivors */}
@@ -71,48 +102,50 @@ const GameOverScreen = () => {
         </motion.div>
 
         {/* Eliminated */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="bunker-card mb-8"
-        >
-          <div className="flex items-center gap-3 mb-6">
-            <Skull className="w-6 h-6 text-destructive" />
-            <h2 className="font-display text-xl text-destructive">ИЗГНАННЫЕ — ОСТАЛИСЬ СНАРУЖИ</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {eliminated.map((player, index) => (
-              <motion.div
-                key={player.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.9 + index * 0.1 }}
-                className="p-4 rounded-lg bg-destructive/10 border-2 border-destructive/30 text-center opacity-70"
-              >
-                <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-destructive/20 flex items-center justify-center">
-                  <Skull className="w-6 h-6 text-destructive" />
-                </div>
-                <p className="font-display text-destructive">{player.name}</p>
-                <p className="text-sm text-muted-foreground mt-1">{player.characteristics.profession}</p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        {eliminated.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="bunker-card mb-8"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <Skull className="w-6 h-6 text-destructive" />
+              <h2 className="font-display text-xl text-destructive">ИЗГНАННЫЕ — ОСТАЛИСЬ СНАРУЖИ</h2>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {eliminated.map((player, index) => (
+                <motion.div
+                  key={player.id}
+                  initial={{ opacity: 0, scale: 0 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.9 + index * 0.1 }}
+                  className="p-4 rounded-lg bg-destructive/10 border-2 border-destructive/30 text-center opacity-70"
+                >
+                  <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-destructive/20 flex items-center justify-center">
+                    <Skull className="w-6 h-6 text-destructive" />
+                  </div>
+                  <p className="font-display text-destructive">{player.name}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{player.characteristics.profession}</p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Back to home */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2 }}
-          className="text-center"
+          className="text-center flex gap-4 justify-center"
         >
           <button
-            onClick={() => navigate('/')}
+            onClick={handleGoHome}
             className="bunker-button inline-flex items-center gap-3"
           >
             <Home className="w-5 h-5" />
-            ВЕРНУТЬСЯ В МЕНЮ
+            В ГЛАВНОЕ МЕНЮ
           </button>
         </motion.div>
       </div>

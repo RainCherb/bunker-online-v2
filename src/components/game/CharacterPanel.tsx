@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
-import { X, Eye, EyeOff, Lock } from 'lucide-react';
+import { X, Eye, Lock, AlertCircle } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 
 interface CharacterPanelProps {
@@ -10,10 +10,15 @@ interface CharacterPanelProps {
 }
 
 const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
-  const { revealCharacteristic, gameState } = useGame();
+  const { revealCharacteristic, gameState, currentPlayer, getCurrentTurnPlayer } = useGame();
+  
+  const isTurnPhase = gameState?.phase === 'turn';
+  const currentTurnPlayer = getCurrentTurnPlayer();
+  const isMyTurn = isTurnPhase && currentTurnPlayer?.id === currentPlayer?.id;
+  const canReveal = isOwn && isMyTurn;
 
   const handleReveal = (key: keyof Characteristics) => {
-    if (isOwn && !player.revealedCharacteristics.includes(key)) {
+    if (canReveal && !player.revealedCharacteristics.includes(key)) {
       revealCharacteristic(player.id, key);
     }
   };
@@ -27,7 +32,9 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
             {isOwn ? 'ВАШ ПЕРСОНАЖ' : player.name}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {isOwn ? 'Раскрывайте характеристики по очереди' : 'Информация об игроке'}
+            {isOwn ? (
+              isMyTurn ? 'Ваш ход! Раскройте характеристику' : 'Ожидайте своей очереди'
+            ) : 'Информация об игроке'}
           </p>
         </div>
         {onClose && (
@@ -39,6 +46,24 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
           </button>
         )}
       </div>
+
+      {/* Turn indicator */}
+      {isOwn && isTurnPhase && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+            isMyTurn 
+              ? 'bg-primary/20 border border-primary text-primary' 
+              : 'bg-muted/50 border border-border text-muted-foreground'
+          }`}
+        >
+          <AlertCircle className="w-5 h-5" />
+          <span className="font-display text-sm">
+            {isMyTurn ? 'ВАШ ХОД — РАСКРОЙТЕ ХАРАКТЕРИСТИКУ' : `Ходит: ${currentTurnPlayer?.name || 'Ожидание...'}`}
+          </span>
+        </motion.div>
+      )}
 
       {/* Characteristics */}
       <div className="space-y-3">
@@ -82,9 +107,14 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
                 {isOwn && !isRevealed && (
                   <button
                     onClick={() => handleReveal(key)}
-                    className="px-3 py-1 text-xs font-display uppercase tracking-wide rounded bg-primary/20 text-primary hover:bg-primary/30 transition-colors"
+                    disabled={!canReveal}
+                    className={`px-3 py-1 text-xs font-display uppercase tracking-wide rounded transition-colors ${
+                      canReveal 
+                        ? 'bg-primary/20 text-primary hover:bg-primary/30 cursor-pointer' 
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    }`}
                   >
-                    Раскрыть
+                    {canReveal ? 'Раскрыть' : 'Не ваш ход'}
                   </button>
                 )}
               </div>
