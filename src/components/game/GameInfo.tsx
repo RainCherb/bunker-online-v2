@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
-import { AlertTriangle, MapPin, Clock, Package, Shield } from 'lucide-react';
+import { AlertTriangle, Clock, Package, Shield, Info } from 'lucide-react';
 
 const GameInfo = () => {
   const { gameState } = useGame();
@@ -27,6 +27,10 @@ const GameInfo = () => {
         <p className="text-sm text-muted-foreground leading-relaxed">
           {catastrophe.description}
         </p>
+        <div className="flex items-center gap-2 mt-3 text-sm">
+          <Clock className="w-4 h-4 text-muted-foreground" />
+          <span>Время выживания: {catastrophe.survivalTime}</span>
+        </div>
       </motion.div>
 
       {/* Bunker Card */}
@@ -46,23 +50,15 @@ const GameInfo = () => {
 
         <div className="space-y-3 text-sm">
           <div className="flex items-start gap-2">
-            <MapPin className="w-4 h-4 text-muted-foreground mt-0.5" />
-            <span>{bunker.location}</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <Clock className="w-4 h-4 text-muted-foreground mt-0.5" />
-            <span>Время нахождения: {bunker.stayDuration}</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <Package className="w-4 h-4 text-muted-foreground mt-0.5" />
-            <span>Запасы: {bunker.foodSupply}</span>
+            <Info className="w-4 h-4 text-muted-foreground mt-0.5" />
+            <span>{bunker.description}</span>
           </div>
         </div>
 
         <div className="mt-4">
           <h5 className="font-display text-xs text-muted-foreground mb-2">В БУНКЕРЕ ИМЕЕТСЯ:</h5>
           <div className="flex flex-wrap gap-2">
-            {bunker.items.map((item, i) => (
+            {bunker.supplies.map((item, i) => (
               <span
                 key={i}
                 className="px-2 py-1 text-xs rounded bg-muted border border-border"

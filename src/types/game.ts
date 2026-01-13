@@ -38,6 +38,19 @@ export interface Catastrophe {
   severity: 'critical' | 'severe' | 'moderate';
 }
 
+// Database compatible versions (for storing in DB)
+export interface BunkerDB {
+  name: string;
+  description: string;
+  supplies: string[];
+}
+
+export interface CatastropheDB {
+  name: string;
+  description: string;
+  survivalTime: string;
+}
+
 export interface GameState {
   id: string;
   phase: GamePhase;
@@ -45,8 +58,8 @@ export interface GameState {
   maxRounds: number;
   currentPlayerIndex: number;
   players: Player[];
-  bunker: Bunker;
-  catastrophe: Catastrophe;
+  bunker: BunkerDB;
+  catastrophe: CatastropheDB;
   bunkerSlots: number;
   timeRemaining: number;
   votingPhase: VotingPhase;
