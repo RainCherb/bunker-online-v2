@@ -1,23 +1,40 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
-import { Shield, Users, Copy, Check, AlertTriangle, Play } from 'lucide-react';
+import { Shield, Users, Copy, Check, AlertTriangle, Play, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const LobbyPage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { gameState, currentPlayer, startGame } = useGame();
+  const { gameState, currentPlayer, startGame, loadGame, isLoading } = useGame();
   const [copied, setCopied] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+
+  // Try to load game if not in state
+  useEffect(() => {
+    if (!gameState && gameId) {
+      const savedPlayerId = localStorage.getItem('bunker_player_id');
+      if (savedPlayerId) {
+        loadGame(gameId, savedPlayerId).then((success) => {
+          if (!success) {
+            navigate('/');
+          }
+        });
+      } else {
+        navigate('/');
+      }
+    }
+  }, [gameState, gameId, loadGame, navigate]);
 
   useEffect(() => {
-    if (!gameState || gameState.id !== gameId) {
+    if (gameState && gameState.id !== gameId) {
       navigate('/');
     }
   }, [gameState, gameId, navigate]);
 
   useEffect(() => {
-    if (gameState?.phase !== 'lobby') {
+    if (gameState?.phase !== 'lobby' && gameState?.phase !== undefined) {
       navigate(`/game/${gameId}`);
     }
   }, [gameState?.phase, gameId, navigate]);
@@ -30,10 +47,25 @@ const LobbyPage = () => {
     }
   };
 
+  const handleStartGame = async () => {
+    setIsStarting(true);
+    await startGame();
+    setIsStarting(false);
+  };
+
   const canStart = gameState && gameState.players.length >= 6;
   const isHost = currentPlayer?.isHost;
 
-  if (!gameState) return null;
+  if (isLoading || !gameState) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Загрузка игры...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -167,14 +199,23 @@ const LobbyPage = () => {
               className="text-center"
             >
               <button
-                onClick={startGame}
-                disabled={!canStart}
+                onClick={handleStartGame}
+                disabled={!canStart || isStarting}
                 className={`bunker-button inline-flex items-center gap-3 ${
-                  !canStart ? 'opacity-50 cursor-not-allowed' : ''
+                  !canStart || isStarting ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <Play className="w-6 h-6" />
-                НАЧАТЬ ИГРУ
+                {isStarting ? (
+                  <>
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    ЗАПУСК...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-6 h-6" />
+                    НАЧАТЬ ИГРУ
+                  </>
+                )}
               </button>
             </motion.div>
           )}

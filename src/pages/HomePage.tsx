@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Shield, Users, Zap, BookOpen } from 'lucide-react';
+import { Shield, Users, Zap, BookOpen, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
@@ -7,22 +7,27 @@ import bunkerHero from '@/assets/bunker-hero.jpg';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { createGame, joinGame, gameState } = useGame();
+  const { createGame, joinGame, isLoading } = useGame();
   const [playerName, setPlayerName] = useState('');
   const [gameCode, setGameCode] = useState('');
   const [mode, setMode] = useState<'none' | 'create' | 'join'>('none');
   const [error, setError] = useState('');
 
-  const handleCreateGame = () => {
+  const handleCreateGame = async () => {
     if (!playerName.trim()) {
       setError('Введите ваше имя');
       return;
     }
-    const gameId = createGame(playerName.trim());
-    navigate(`/lobby/${gameId}`);
+    setError('');
+    const gameId = await createGame(playerName.trim());
+    if (gameId) {
+      navigate(`/lobby/${gameId}`);
+    } else {
+      setError('Ошибка при создании игры');
+    }
   };
 
-  const handleJoinGame = () => {
+  const handleJoinGame = async () => {
     if (!playerName.trim()) {
       setError('Введите ваше имя');
       return;
@@ -32,17 +37,12 @@ const HomePage = () => {
       return;
     }
     
-    // For demo, create a game if it doesn't exist
-    if (!gameState) {
-      setError('Игра не найдена. Проверьте код.');
-      return;
-    }
-    
-    const success = joinGame(gameCode.toUpperCase(), playerName.trim());
+    setError('');
+    const success = await joinGame(gameCode.toUpperCase(), playerName.trim());
     if (success) {
       navigate(`/lobby/${gameCode.toUpperCase()}`);
     } else {
-      setError('Не удалось присоединиться к игре');
+      setError('Игра не найдена или уже началась');
     }
   };
 
@@ -130,6 +130,7 @@ const HomePage = () => {
                       placeholder="Введите имя..."
                       className="bunker-input"
                       maxLength={20}
+                      disabled={isLoading}
                     />
                   </div>
 
@@ -145,6 +146,7 @@ const HomePage = () => {
                         placeholder="Введите код..."
                         className="bunker-input uppercase tracking-widest text-center font-display"
                         maxLength={6}
+                        disabled={isLoading}
                       />
                     </div>
                   )}
@@ -160,14 +162,23 @@ const HomePage = () => {
                         setError('');
                       }}
                       className="bunker-button-secondary flex-1"
+                      disabled={isLoading}
                     >
                       Назад
                     </button>
                     <button
                       onClick={mode === 'create' ? handleCreateGame : handleJoinGame}
-                      className="bunker-button flex-1"
+                      className="bunker-button flex-1 flex items-center justify-center gap-2"
+                      disabled={isLoading}
                     >
-                      {mode === 'create' ? 'Создать' : 'Войти'}
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Загрузка...
+                        </>
+                      ) : (
+                        mode === 'create' ? 'Создать' : 'Войти'
+                      )}
                     </button>
                   </div>
                 </div>

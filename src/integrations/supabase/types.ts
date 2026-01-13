@@ -14,7 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      games: {
+        Row: {
+          bunker_description: string
+          bunker_name: string
+          bunker_slots: number
+          bunker_supplies: string[]
+          catastrophe_description: string
+          catastrophe_name: string
+          catastrophe_survival_time: string
+          created_at: string
+          current_player_index: number
+          current_round: number
+          id: string
+          max_rounds: number
+          phase: string
+          time_remaining: number
+          updated_at: string
+          votes: Json
+          voting_phase: string
+        }
+        Insert: {
+          bunker_description: string
+          bunker_name: string
+          bunker_slots?: number
+          bunker_supplies?: string[]
+          catastrophe_description: string
+          catastrophe_name: string
+          catastrophe_survival_time: string
+          created_at?: string
+          current_player_index?: number
+          current_round?: number
+          id: string
+          max_rounds?: number
+          phase?: string
+          time_remaining?: number
+          updated_at?: string
+          votes?: Json
+          voting_phase?: string
+        }
+        Update: {
+          bunker_description?: string
+          bunker_name?: string
+          bunker_slots?: number
+          bunker_supplies?: string[]
+          catastrophe_description?: string
+          catastrophe_name?: string
+          catastrophe_survival_time?: string
+          created_at?: string
+          current_player_index?: number
+          current_round?: number
+          id?: string
+          max_rounds?: number
+          phase?: string
+          time_remaining?: number
+          updated_at?: string
+          votes?: Json
+          voting_phase?: string
+        }
+        Relationships: []
+      }
+      players: {
+        Row: {
+          characteristics: Json
+          created_at: string
+          game_id: string
+          has_voted: boolean
+          id: string
+          is_eliminated: boolean
+          is_host: boolean
+          name: string
+          revealed_characteristics: string[]
+          votes_against: number
+        }
+        Insert: {
+          characteristics: Json
+          created_at?: string
+          game_id: string
+          has_voted?: boolean
+          id: string
+          is_eliminated?: boolean
+          is_host?: boolean
+          name: string
+          revealed_characteristics?: string[]
+          votes_against?: number
+        }
+        Update: {
+          characteristics?: Json
+          created_at?: string
+          game_id?: string
+          has_voted?: boolean
+          id?: string
+          is_eliminated?: boolean
+          is_host?: boolean
+          name?: string
+          revealed_characteristics?: string[]
+          votes_against?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "players_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
