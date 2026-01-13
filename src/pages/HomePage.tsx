@@ -1,17 +1,28 @@
 import { motion } from 'framer-motion';
 import { Shield, Users, Zap, BookOpen, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import bunkerHero from '@/assets/bunker-hero.jpg';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { createGame, joinGame, isLoading } = useGame();
+  const { createGame, joinGame, isLoading, gameState, currentPlayer } = useGame();
   const [playerName, setPlayerName] = useState('');
   const [gameCode, setGameCode] = useState('');
   const [mode, setMode] = useState<'none' | 'create' | 'join'>('none');
   const [error, setError] = useState('');
+
+  // Redirect to active game if session is restored
+  useEffect(() => {
+    if (gameState && currentPlayer) {
+      if (gameState.phase === 'lobby') {
+        navigate(`/lobby/${gameState.id}`);
+      } else {
+        navigate(`/game/${gameState.id}`);
+      }
+    }
+  }, [gameState, currentPlayer, navigate]);
 
   const handleCreateGame = async () => {
     if (!playerName.trim()) {

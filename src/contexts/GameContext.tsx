@@ -20,6 +20,7 @@ interface GameContextType {
   skipVoting: () => Promise<void>;
   setCurrentPlayerId: (playerId: string) => void;
   getCurrentTurnPlayer: () => Player | null;
+  clearSession: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -350,6 +351,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [gameState]);
 
+  // Clear game session
+  const clearSession = useCallback(() => {
+    localStorage.removeItem(GAME_ID_KEY);
+    localStorage.removeItem(PLAYER_ID_KEY);
+    setGameState(null);
+    setCurrentPlayerIdState(null);
+  }, []);
+
   // Check for existing session on mount
   useEffect(() => {
     const savedGameId = localStorage.getItem(GAME_ID_KEY);
@@ -378,6 +387,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       skipVoting,
       setCurrentPlayerId,
       getCurrentTurnPlayer,
+      clearSession,
     }}>
       {children}
     </GameContext.Provider>
