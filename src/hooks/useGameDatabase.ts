@@ -212,7 +212,7 @@ export function useGameDatabase() {
 
     const bunkerSlots = calculateBunkerSlots(players.length);
 
-    // Update game phase
+    // Update game phase - professions stay hidden, players reveal them on their turn
     const { error: gameError } = await supabase
       .from('games')
       .update({
@@ -227,11 +227,11 @@ export function useGameDatabase() {
       return false;
     }
 
-    // Reveal profession for all players
+    // Reset all revealed characteristics to empty - all cards start hidden
     const { error: playersError } = await supabase
       .from('players')
       .update({
-        revealed_characteristics: ['profession'],
+        revealed_characteristics: [],
       })
       .eq('game_id', gameId);
 
