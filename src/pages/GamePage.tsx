@@ -1,19 +1,101 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
-import { Shield, Clock, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Shield, Clock, Users, ChevronRight } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import PlayerCard from '@/components/game/PlayerCard';
 import CharacterPanel from '@/components/game/CharacterPanel';
 import GameInfo from '@/components/game/GameInfo';
 import VotingPanel from '@/components/game/VotingPanel';
 import GameOverScreen from '@/components/game/GameOverScreen';
+import GameTimer from '@/components/game/GameTimer';
+import { useGameTimer } from '@/hooks/useGameTimer';
+
+const TURN_TIME = 60; // 60 seconds per turn
+const DISCUSSION_TIME = 30; // 30 seconds for discussion after round 1
 
 const GamePage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { gameState, currentPlayer, nextPhase, nextPlayerTurn, skipVoting, getCurrentTurnPlayer, loadGame, isLoading } = useGame();
+  const { 
+    gameState, 
+    currentPlayer, 
+    nextPhase, 
+    nextPlayerTurn, 
+    skipVoting, 
+    getCurrentTurnPlayer, 
+    loadGame, 
+    isLoading,
+    autoRevealRandomCharacteristic,
+    hasRevealedThisTurn
+  } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
+
+  const currentTurnPlayer = getCurrentTurnPlayer();
+  const isMyTurn = currentTurnPlayer?.id === currentPlayer?.id;
+  const isTurnPhase = gameState?.phase === 'turn';
+  const isDiscussionPhase = gameState?.phase === 'discussion';
+
+  // Handle turn timeout
+  const handleTurnTimeout = useCallback(async () => {
+    if (!currentTurnPlayer || !isTurnPhase) return;
+    
+    // If current turn player hasn't revealed, auto-reveal for them
+    if (!hasRevealedThisTurn(currentTurnPlayer.id)) {
+      await autoRevealRandomCharacteristic(currentTurnPlayer.id);
+    }
+    
+    // Move to next player (only host triggers this to avoid duplicates)
+    if (currentPlayer?.isHost) {
+      await nextPlayerTurn();
+    }
+  }, [currentTurnPlayer, isTurnPhase, hasRevealedThisTurn, autoRevealRandomCharacteristic, currentPlayer?.isHost, nextPlayerTurn]);
+
+  // Handle discussion timeout (after round 1)
+  const handleDiscussionTimeout = useCallback(async () => {
+    if (!isDiscussionPhase || !currentPlayer?.isHost) return;
+    await nextPhase();
+  }, [isDiscussionPhase, currentPlayer?.isHost, nextPhase]);
+
+  // Turn timer
+  const turnTimer = useGameTimer({
+    initialTime: TURN_TIME,
+    onTimeUp: handleTurnTimeout,
+    autoStart: false
+  });
+
+  // Discussion timer
+  const discussionTimer = useGameTimer({
+    initialTime: DISCUSSION_TIME,
+    onTimeUp: handleDiscussionTimeout,
+    autoStart: false
+  });
+
+  // Start turn timer when phase is 'turn' and player index changes
+  useEffect(() => {
+    if (isTurnPhase && currentTurnPlayer) {
+      turnTimer.reset(TURN_TIME);
+      turnTimer.start();
+    } else {
+      turnTimer.stop();
+    }
+  }, [isTurnPhase, gameState?.currentPlayerIndex, currentTurnPlayer?.id]);
+
+  // Start discussion timer after round 1
+  useEffect(() => {
+    if (isDiscussionPhase && gameState?.currentRound === 1) {
+      discussionTimer.reset(DISCUSSION_TIME);
+      discussionTimer.start();
+    } else {
+      discussionTimer.stop();
+    }
+  }, [isDiscussionPhase, gameState?.currentRound]);
+
+  // Handle next player button click
+  const handleNextPlayer = async () => {
+    turnTimer.stop();
+    await nextPlayerTurn();
+  };
 
   // Try to load game if not in state
   useEffect(() => {
@@ -56,9 +138,7 @@ const GamePage = () => {
   const alivePlayers = gameState.players.filter(p => !p.isEliminated);
   const isVotingPhase = gameState.phase === 'voting' || gameState.phase === 'defense';
   const isResultsPhase = gameState.phase === 'results';
-  const isTurnPhase = gameState.phase === 'turn';
-  const currentTurnPlayer = getCurrentTurnPlayer();
-  const isMyTurn = currentTurnPlayer?.id === currentPlayer.id;
+  const playerRevealed = currentTurnPlayer ? hasRevealedThisTurn(currentTurnPlayer.id) : false;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -66,76 +146,115 @@ const GamePage = () => {
       <div className="absolute inset-0 radiation-gradient opacity-30" />
       <div className="absolute inset-0 scanline pointer-events-none opacity-50" />
 
-      <div className="relative z-10 h-screen flex flex-col">
-        {/* Header */}
-        <header className="flex-shrink-0 p-4 border-b border-border bg-card/80 backdrop-blur">
-          <div className="container mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Shield className="w-6 h-6 text-primary" />
-                <span className="font-display text-lg tracking-wider text-primary">БУНКЕР</span>
+      <div className="relative z-10 min-h-screen flex flex-col">
+        {/* Header - Mobile optimized */}
+        <header className="flex-shrink-0 p-2 sm:p-4 border-b border-border bg-card/80 backdrop-blur">
+          <div className="container mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+                <span className="font-display text-sm sm:text-lg tracking-wider text-primary hidden sm:inline">БУНКЕР</span>
               </div>
-              <div className="h-6 w-px bg-border" />
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-muted-foreground" />
-                <span className="font-display text-sm text-secondary">РАУНД {gameState.currentRound}</span>
+              <div className="h-4 sm:h-6 w-px bg-border flex-shrink-0" />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
+                <span className="font-display text-xs sm:text-sm text-secondary">РАУНД {gameState.currentRound}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <span>{alivePlayers.length}/{gameState.bunkerSlots} мест</span>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                <Users className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
+                <span>{alivePlayers.length}/{gameState.bunkerSlots}</span>
               </div>
               <button
                 onClick={() => setShowCharacterPanel(!showCharacterPanel)}
-                className="bunker-button-secondary !py-2 !px-4 text-sm"
+                className="bunker-button-secondary !py-1.5 !px-2 sm:!py-2 sm:!px-4 text-xs sm:text-sm"
               >
-                Мой персонаж
+                <span className="hidden sm:inline">Мой персонаж</span>
+                <span className="sm:hidden">Персонаж</span>
               </button>
             </div>
           </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-hidden flex">
-          {/* Left Panel - Game Info */}
+        {/* Main Content - Mobile optimized */}
+        <main className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+          {/* Left Panel - Game Info (hidden on mobile, shown as overlay) */}
           <aside className="w-80 flex-shrink-0 border-r border-border bg-card/50 overflow-y-auto hidden lg:block">
             <GameInfo />
           </aside>
 
-          {/* Center - Players Grid */}
-          <div className="flex-1 overflow-y-auto p-6">
+          {/* Center - Main game area */}
+          <div className="flex-1 overflow-y-auto p-3 sm:p-6">
             <div className="max-w-5xl mx-auto">
-              {/* Phase Indicator */}
+              {/* Phase Indicator with Timer */}
               <motion.div
-                key={gameState.phase}
+                key={gameState.phase + gameState.currentPlayerIndex}
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-6 text-center"
+                className="mb-4 sm:mb-6 text-center"
               >
-                <h2 className="font-display text-2xl text-primary text-glow">
+                <h2 className="font-display text-lg sm:text-2xl text-primary text-glow">
                   {getPhaseTitle(gameState.phase)}
                 </h2>
-                <p className="text-muted-foreground mt-2">
-                  {getPhaseDescription(gameState.phase, currentTurnPlayer?.name)}
+                <p className="text-muted-foreground text-sm sm:text-base mt-1 sm:mt-2">
+                  {getPhaseDescription(gameState.phase, currentTurnPlayer?.name, gameState.currentRound)}
                 </p>
                 
-                {/* Current turn indicator */}
-                {isTurnPhase && currentTurnPlayer && (
-                  <motion.div
-                    initial={{ scale: 0.9 }}
-                    animate={{ scale: 1 }}
-                    className={`mt-4 inline-block px-6 py-3 rounded-lg ${
-                      isMyTurn 
-                        ? 'bg-primary/20 border-2 border-primary text-primary' 
-                        : 'bg-muted/50 border border-border'
-                    }`}
-                  >
-                    <span className="font-display">
-                      {isMyTurn ? '🎯 ВАШ ХОД — РАСКРОЙТЕ ХАРАКТЕРИСТИКУ' : `Ходит: ${currentTurnPlayer.name}`}
-                    </span>
-                  </motion.div>
+                {/* Timer display */}
+                {isTurnPhase && (
+                  <div className="mt-3 sm:mt-4 flex flex-col items-center gap-2">
+                    <GameTimer 
+                      timeRemaining={turnTimer.timeRemaining} 
+                      isRunning={turnTimer.isRunning}
+                      label="До конца хода"
+                    />
+                    
+                    {/* Current turn indicator */}
+                    {currentTurnPlayer && (
+                      <motion.div
+                        initial={{ scale: 0.9 }}
+                        animate={{ scale: 1 }}
+                        className={`mt-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base ${
+                          isMyTurn 
+                            ? 'bg-primary/20 border-2 border-primary text-primary' 
+                            : 'bg-muted/50 border border-border'
+                        }`}
+                      >
+                        <span className="font-display">
+                          {isMyTurn 
+                            ? (gameState.currentRound === 1 
+                                ? '🎯 ВАШ ХОД — ОТКРОЙТЕ ПРОФЕССИЮ' 
+                                : '🎯 ВАШ ХОД — ОТКРОЙТЕ КАРТУ')
+                            : `Ходит: ${currentTurnPlayer.name}`}
+                        </span>
+                      </motion.div>
+                    )}
+
+                    {/* Show "waiting for reveal" or "revealed" status */}
+                    {currentTurnPlayer && (
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                        {playerRevealed 
+                          ? `✅ ${currentTurnPlayer.name} раскрыл карту. Ожидание...` 
+                          : `⏳ Ожидаем, когда ${isMyTurn ? 'вы раскроете' : `${currentTurnPlayer.name} раскроет`} карту`}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Discussion timer (after round 1) */}
+                {isDiscussionPhase && gameState.currentRound === 1 && (
+                  <div className="mt-3 sm:mt-4">
+                    <GameTimer 
+                      timeRemaining={discussionTimer.timeRemaining} 
+                      isRunning={discussionTimer.isRunning}
+                      label="До следующего раунда"
+                    />
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                      Обсудите увиденные профессии перед раундом 2
+                    </p>
+                  </div>
                 )}
               </motion.div>
 
@@ -143,28 +262,23 @@ const GamePage = () => {
               {(isVotingPhase || isResultsPhase) && <VotingPanel />}
 
               {/* First Round Skip Voting Option */}
-              {gameState.phase === 'discussion' && gameState.currentRound === 1 && currentPlayer.isHost && (
+              {gameState.phase === 'discussion' && gameState.currentRound > 1 && currentPlayer.isHost && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="bunker-card mb-6 text-center"
+                  className="bunker-card mb-4 sm:mb-6 text-center"
                 >
-                  <p className="text-muted-foreground mb-4">
-                    В первом раунде голосование можно пропустить
+                  <p className="text-muted-foreground mb-3 sm:mb-4 text-sm sm:text-base">
+                    Время для обсуждения перед голосованием
                   </p>
-                  <div className="flex gap-4 justify-center">
-                    <button onClick={skipVoting} className="bunker-button-secondary">
-                      Пропустить голосование
-                    </button>
-                    <button onClick={nextPhase} className="bunker-button">
-                      Перейти к защите
-                    </button>
-                  </div>
+                  <button onClick={nextPhase} className="bunker-button text-sm sm:text-base">
+                    Перейти к защите
+                  </button>
                 </motion.div>
               )}
 
-              {/* Players Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {/* Players Grid - Mobile optimized */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
                 {gameState.players.map((player, index) => (
                   <PlayerCard
                     key={player.id}
@@ -172,26 +286,34 @@ const GamePage = () => {
                     index={index}
                     isCurrentPlayer={player.id === currentPlayer.id}
                     isCurrentTurn={currentTurnPlayer?.id === player.id && isTurnPhase}
+                    hasRevealedThisTurn={playerRevealed && currentTurnPlayer?.id === player.id}
                   />
                 ))}
               </div>
 
-              {/* Phase Control (Host) */}
-              {currentPlayer.isHost && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="mt-8 text-center"
-                >
-                  {getHostControls(gameState.phase, nextPhase, nextPlayerTurn)}
-                </motion.div>
-              )}
+              {/* Phase Control (for current turn player or host) */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-6 sm:mt-8 text-center"
+              >
+                {getPhaseControls(
+                  gameState.phase, 
+                  nextPhase, 
+                  handleNextPlayer, 
+                  currentPlayer.isHost, 
+                  isMyTurn,
+                  playerRevealed,
+                  gameState.currentRound,
+                  skipVoting
+                )}
+              </motion.div>
             </div>
           </div>
 
           {/* Right Panel - Character Panel */}
           {showCharacterPanel && (
-            <aside className="w-96 flex-shrink-0 border-l border-border bg-card/50 overflow-y-auto">
+            <aside className="fixed inset-0 z-50 lg:relative lg:inset-auto lg:w-96 lg:flex-shrink-0 lg:border-l lg:border-border bg-card lg:bg-card/50 overflow-y-auto">
               <CharacterPanel 
                 player={currentPlayer} 
                 isOwn={true}
@@ -200,8 +322,43 @@ const GamePage = () => {
             </aside>
           )}
         </main>
+
+        {/* Mobile Game Info Button */}
+        <div className="lg:hidden fixed bottom-4 left-4 z-40">
+          <MobileGameInfoButton />
+        </div>
       </div>
     </div>
+  );
+};
+
+// Mobile Game Info Button Component
+const MobileGameInfoButton = () => {
+  const [showInfo, setShowInfo] = useState(false);
+  
+  return (
+    <>
+      <button 
+        onClick={() => setShowInfo(true)}
+        className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg"
+      >
+        <Shield className="w-6 h-6" />
+      </button>
+      
+      {showInfo && (
+        <div className="fixed inset-0 bg-background/95 z-50 overflow-y-auto">
+          <div className="p-4">
+            <button 
+              onClick={() => setShowInfo(false)}
+              className="absolute top-4 right-4 p-2"
+            >
+              ✕
+            </button>
+            <GameInfo />
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -212,53 +369,87 @@ function getPhaseTitle(phase: string): string {
     discussion: 'ОБСУЖДЕНИЕ',
     defense: 'ЗАЩИТНАЯ РЕЧЬ',
     voting: 'ГОЛОСОВАНИЕ',
-    results: 'РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ',
-    farewell: 'ПРОЩАЛЬНАЯ РЕЧЬ',
+    results: 'РЕЗУЛЬТАТЫ',
+    farewell: 'ПРОЩАНИЕ',
   };
   return titles[phase] || phase.toUpperCase();
 }
 
-function getPhaseDescription(phase: string, currentPlayerName?: string): string {
+function getPhaseDescription(phase: string, currentPlayerName?: string, round?: number): string {
   const descriptions: Record<string, string> = {
-    introduction: 'Игроки представляют своих персонажей и раскрывают профессию',
-    turn: currentPlayerName ? `Сейчас ходит: ${currentPlayerName}` : 'Каждый игрок раскрывает характеристики своего персонажа',
-    discussion: 'Общее обсуждение — обсудите, кого изгнать',
-    defense: 'Время для защитных речей — каждый может высказаться',
-    voting: 'Голосование за исключение игрока из бункера',
-    results: 'Подведение итогов голосования',
-    farewell: 'Прощальная речь изгнанного игрока',
+    introduction: 'Хост начинает игру',
+    turn: round === 1 
+      ? `Раунд 1: Игроки раскрывают только профессию` 
+      : `Раунд ${round}: Игроки раскрывают любую одну карту`,
+    discussion: round === 1 
+      ? 'Обсуждение профессий перед раундом 2' 
+      : 'Обсудите, кого изгнать из бункера',
+    defense: 'Время для защитных речей',
+    voting: 'Голосование за исключение',
+    results: 'Подведение итогов',
+    farewell: 'Прощальная речь изгнанного',
   };
   return descriptions[phase] || '';
 }
 
-function getHostControls(phase: string, nextPhase: () => void, nextPlayerTurn: () => void) {
+function getPhaseControls(
+  phase: string, 
+  nextPhase: () => void, 
+  nextPlayerTurn: () => void, 
+  isHost: boolean,
+  isMyTurn: boolean,
+  hasRevealed: boolean,
+  currentRound: number,
+  skipVoting: () => void
+) {
   switch (phase) {
     case 'introduction':
-      return (
+      return isHost ? (
         <button onClick={nextPhase} className="bunker-button">
           Начать раунд
         </button>
-      );
+      ) : null;
     case 'turn':
-      return (
-        <button onClick={nextPlayerTurn} className="bunker-button">
-          Следующий игрок
-        </button>
-      );
+      // Player can click "Next Player" after revealing
+      if (isMyTurn && hasRevealed) {
+        return (
+          <button onClick={nextPlayerTurn} className="bunker-button flex items-center gap-2 mx-auto">
+            <span>Следующий игрок</span>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        );
+      }
+      // Host can force next player
+      if (isHost && !isMyTurn) {
+        return (
+          <button onClick={nextPlayerTurn} className="bunker-button-secondary text-sm">
+            Пропустить ход
+          </button>
+        );
+      }
+      return null;
     case 'discussion':
-      return null; // Controls are above
+      if (currentRound === 1) {
+        // After round 1 discussion, auto-transition or host can skip
+        return isHost ? (
+          <button onClick={nextPhase} className="bunker-button">
+            Начать раунд 2
+          </button>
+        ) : null;
+      }
+      return null;
     case 'defense':
-      return (
+      return isHost ? (
         <button onClick={nextPhase} className="bunker-button">
           Начать голосование
         </button>
-      );
+      ) : null;
     case 'farewell':
-      return (
+      return isHost ? (
         <button onClick={nextPhase} className="bunker-button">
           Следующий раунд
         </button>
-      );
+      ) : null;
     default:
       return null;
   }

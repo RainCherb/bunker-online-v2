@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB } from '@/types/game';
+import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB, CHARACTERISTICS_ORDER } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { useGameDatabase } from '@/hooks/useGameDatabase';
 
@@ -11,7 +11,7 @@ interface GameContextType {
   joinGame: (gameId: string, playerName: string) => Promise<boolean>;
   loadGame: (gameId: string, playerId: string) => Promise<boolean>;
   startGame: () => Promise<void>;
-  revealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => Promise<void>;
+  revealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => Promise<boolean>;
   nextPhase: () => Promise<void>;
   nextPlayerTurn: () => Promise<void>;
   castVote: (voterId: string, targetId: string) => Promise<void>;
@@ -21,6 +21,10 @@ interface GameContextType {
   setCurrentPlayerId: (playerId: string) => void;
   getCurrentTurnPlayer: () => Player | null;
   clearSession: () => void;
+  canRevealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => boolean;
+  getAvailableCharacteristics: (playerId: string) => (keyof Characteristics)[];
+  autoRevealRandomCharacteristic: (playerId: string) => Promise<void>;
+  hasRevealedThisTurn: (playerId: string) => boolean;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -28,6 +32,7 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 // Storage keys
 const PLAYER_ID_KEY = 'bunker_player_id';
 const GAME_ID_KEY = 'bunker_game_id';
+const REVEALED_THIS_TURN_KEY = 'bunker_revealed_this_turn';
 
 // Transform database row to Player type
 const dbPlayerToPlayer = (row: any): Player => ({
@@ -69,6 +74,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [currentPlayerId, setCurrentPlayerIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [revealedThisTurn, setRevealedThisTurn] = useState<Set<string>>(new Set());
   const db = useGameDatabase();
 
   const currentPlayer = gameState?.players.find(p => p.id === currentPlayerId) || null;
@@ -198,6 +204,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startGame = useCallback(async () => {
     if (!gameState || gameState.players.length < 6) return;
     await db.startGame(gameState.id);
+    setRevealedThisTurn(new Set());
   }, [gameState, db]);
 
   // Get current turn player
@@ -208,12 +215,79 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return alivePlayers[gameState.currentPlayerIndex];
   }, [gameState]);
 
-  // Reveal a characteristic
-  const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics) => {
+  // Check if player already revealed this turn
+  const hasRevealedThisTurn = useCallback((playerId: string): boolean => {
+    return revealedThisTurn.has(playerId);
+  }, [revealedThisTurn]);
+
+  // Get available characteristics for a player based on round
+  const getAvailableCharacteristics = useCallback((playerId: string): (keyof Characteristics)[] => {
     const player = gameState?.players.find(p => p.id === playerId);
-    if (!player) return;
-    await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
-  }, [gameState, db]);
+    if (!player || !gameState) return [];
+
+    const revealed = player.revealedCharacteristics;
+    const round = gameState.currentRound;
+
+    // Round 1: Only profession
+    if (round === 1) {
+      if (revealed.includes('profession')) return [];
+      return ['profession'];
+    }
+
+    // Round 2+: Any unrevealed characteristic
+    return CHARACTERISTICS_ORDER.filter(c => !revealed.includes(c));
+  }, [gameState]);
+
+  // Check if can reveal a specific characteristic
+  const canRevealCharacteristic = useCallback((playerId: string, characteristic: keyof Characteristics): boolean => {
+    if (!gameState) return false;
+    
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    // Already revealed
+    if (player.revealedCharacteristics.includes(characteristic)) return false;
+
+    // Check if it's this player's turn
+    const currentTurnPlayer = getCurrentTurnPlayer();
+    if (currentTurnPlayer?.id !== playerId) return false;
+
+    // Check if already revealed this turn
+    if (revealedThisTurn.has(playerId)) return false;
+
+    // Round 1: Only profession allowed
+    if (gameState.currentRound === 1) {
+      return characteristic === 'profession';
+    }
+
+    return true;
+  }, [gameState, getCurrentTurnPlayer, revealedThisTurn]);
+
+  // Reveal a characteristic
+  const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics): Promise<boolean> => {
+    if (!canRevealCharacteristic(playerId, characteristic)) return false;
+
+    const player = gameState?.players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    const success = await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
+    
+    if (success) {
+      setRevealedThisTurn(prev => new Set(prev).add(playerId));
+    }
+    
+    return success;
+  }, [gameState, db, canRevealCharacteristic]);
+
+  // Auto reveal a random characteristic (for timeout)
+  const autoRevealRandomCharacteristic = useCallback(async (playerId: string): Promise<void> => {
+    const available = getAvailableCharacteristics(playerId);
+    if (available.length === 0) return;
+
+    // Pick the first available (or random)
+    const characteristic = available[0];
+    await revealCharacteristic(playerId, characteristic);
+  }, [getAvailableCharacteristics, revealCharacteristic]);
 
   // Move to next player turn
   const nextPlayerTurn = useCallback(async () => {
@@ -222,12 +296,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const nextIndex = gameState.currentPlayerIndex + 1;
     
-    // If all players have had their turn, move to discussion phase
+    // Clear revealed this turn for new player
+    setRevealedThisTurn(new Set());
+    
+    // If all players have had their turn
     if (nextIndex >= alivePlayers.length) {
-      await db.updateGamePhase(gameState.id, { 
-        phase: 'discussion',
-        current_player_index: 0
-      });
+      // Round 1: Go to discussion for 30 seconds, then next round
+      if (gameState.currentRound === 1) {
+        await db.updateGamePhase(gameState.id, { 
+          phase: 'discussion',
+          current_player_index: 0
+        });
+      } else {
+        // Round 2+: Go to voting
+        await db.updateGamePhase(gameState.id, { 
+          phase: 'defense',
+          current_player_index: 0
+        });
+      }
     } else {
       await db.updateGamePhase(gameState.id, { 
         current_player_index: nextIndex 
@@ -250,6 +336,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Phase progression logic
     switch (gameState.phase) {
       case 'introduction':
+        setRevealedThisTurn(new Set());
         await db.updateGamePhase(gameState.id, { 
           phase: 'turn',
           current_player_index: 0
@@ -259,9 +346,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await db.updateGamePhase(gameState.id, { phase: 'discussion' });
         break;
       case 'discussion':
-        // First round - can skip voting
+        // After round 1 discussion, start round 2
         if (gameState.currentRound === 1) {
-          await db.updateGamePhase(gameState.id, { phase: 'defense' });
+          setRevealedThisTurn(new Set());
+          await db.updateGamePhase(gameState.id, { 
+            phase: 'turn',
+            current_round: 2,
+            current_player_index: 0
+          });
         } else {
           await db.updateGamePhase(gameState.id, { phase: 'defense' });
         }
@@ -277,6 +369,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         break;
       case 'farewell':
         // Start new round
+        setRevealedThisTurn(new Set());
         await db.resetVotes(gameState.id);
         await db.updateGamePhase(gameState.id, {
           phase: 'turn',
@@ -298,6 +391,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     if (maxVotes === 0) {
       // No votes cast, skip elimination
+      setRevealedThisTurn(new Set());
       await db.updateGamePhase(gameState.id, { phase: 'turn' });
       await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, {
@@ -311,11 +405,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const playersWithMaxVotes = alivePlayers.filter(p => p.votesAgainst === maxVotes);
     
     if (playersWithMaxVotes.length === 1) {
-      // Clear winner (loser), eliminate them
       await db.eliminatePlayer(playersWithMaxVotes[0].id);
       await db.updateGamePhase(gameState.id, { phase: 'farewell' });
     } else {
-      // Tie - for now eliminate the first one, but ideally would have revote
+      // Tie - eliminate the first one
       await db.eliminatePlayer(playersWithMaxVotes[0].id);
       await db.updateGamePhase(gameState.id, { phase: 'farewell' });
     }
@@ -335,6 +428,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Skip voting (first round only)
   const skipVoting = useCallback(async () => {
     if (!gameState || gameState.currentRound !== 1) return;
+    setRevealedThisTurn(new Set());
     await db.resetVotes(gameState.id);
     await db.updateGamePhase(gameState.id, {
       phase: 'turn',
@@ -355,8 +449,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     localStorage.removeItem(GAME_ID_KEY);
     localStorage.removeItem(PLAYER_ID_KEY);
+    localStorage.removeItem(REVEALED_THIS_TURN_KEY);
     setGameState(null);
     setCurrentPlayerIdState(null);
+    setRevealedThisTurn(new Set());
   }, []);
 
   // Check for existing session on mount
@@ -388,6 +484,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setCurrentPlayerId,
       getCurrentTurnPlayer,
       clearSession,
+      canRevealCharacteristic,
+      getAvailableCharacteristics,
+      autoRevealRandomCharacteristic,
+      hasRevealedThisTurn,
     }}>
       {children}
     </GameContext.Provider>
