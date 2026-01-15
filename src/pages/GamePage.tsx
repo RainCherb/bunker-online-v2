@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
-import { Shield, Clock, Users, ChevronRight } from 'lucide-react';
+import { Shield, Clock, Users, ChevronRight, LogOut } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import PlayerCard from '@/components/game/PlayerCard';
 import CharacterPanel from '@/components/game/CharacterPanel';
@@ -27,7 +27,8 @@ const GamePage = () => {
     loadGame, 
     isLoading,
     autoRevealRandomCharacteristic,
-    hasRevealedThisTurn
+    hasRevealedThisTurn,
+    clearSession
   } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
 
@@ -95,6 +96,12 @@ const GamePage = () => {
   const handleNextPlayer = async () => {
     turnTimer.stop();
     await nextPlayerTurn();
+  };
+
+  // Handle leave game
+  const handleLeaveGame = () => {
+    clearSession();
+    navigate('/');
   };
 
   // Try to load game if not in state
@@ -174,6 +181,13 @@ const GamePage = () => {
                 <span className="hidden sm:inline">Мой персонаж</span>
                 <span className="sm:hidden">Персонаж</span>
               </button>
+              <button
+                onClick={handleLeaveGame}
+                className="p-1.5 sm:p-2 rounded-lg hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                title="Покинуть игру"
+              >
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
             </div>
           </div>
         </header>
@@ -211,33 +225,55 @@ const GamePage = () => {
                       label="До конца хода"
                     />
                     
-                    {/* Current turn indicator */}
+                    {/* Current turn indicator OR Next player button */}
                     {currentTurnPlayer && (
-                      <motion.div
-                        initial={{ scale: 0.9 }}
-                        animate={{ scale: 1 }}
-                        className={`mt-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base ${
-                          isMyTurn 
-                            ? 'bg-primary/20 border-2 border-primary text-primary' 
-                            : 'bg-muted/50 border border-border'
-                        }`}
-                      >
-                        <span className="font-display">
-                          {isMyTurn 
-                            ? (gameState.currentRound === 1 
-                                ? '🎯 ВАШ ХОД — ОТКРОЙТЕ ПРОФЕССИЮ' 
-                                : '🎯 ВАШ ХОД — ОТКРОЙТЕ КАРТУ')
-                            : `Ходит: ${currentTurnPlayer.name}`}
-                        </span>
-                      </motion.div>
+                      <>
+                        {isMyTurn && playerRevealed ? (
+                          // Show "Next Player" button after revealing
+                          <motion.button
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            onClick={handleNextPlayer}
+                            className="mt-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-display text-sm sm:text-base flex items-center gap-2 hover:bg-primary/90 transition-colors"
+                          >
+                            <span>СЛЕДУЮЩИЙ ИГРОК</span>
+                            <ChevronRight className="w-5 h-5" />
+                          </motion.button>
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.9 }}
+                            animate={{ scale: 1 }}
+                            className={`mt-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base ${
+                              isMyTurn 
+                                ? 'bg-primary/20 border-2 border-primary text-primary' 
+                                : 'bg-muted/50 border border-border'
+                            }`}
+                          >
+                            <span className="font-display">
+                              {isMyTurn 
+                                ? (gameState.currentRound === 1 
+                                    ? '🎯 ВАШ ХОД — ОТКРОЙТЕ ПРОФЕССИЮ' 
+                                    : '🎯 ВАШ ХОД — ОТКРОЙТЕ КАРТУ')
+                                : `Ходит: ${currentTurnPlayer.name}`}
+                            </span>
+                          </motion.div>
+                        )}
+                      </>
                     )}
 
                     {/* Show "waiting for reveal" or "revealed" status */}
-                    {currentTurnPlayer && (
+                    {currentTurnPlayer && !isMyTurn && (
                       <p className="text-xs sm:text-sm text-muted-foreground mt-2">
                         {playerRevealed 
                           ? `✅ ${currentTurnPlayer.name} раскрыл карту. Ожидание...` 
-                          : `⏳ Ожидаем, когда ${isMyTurn ? 'вы раскроете' : `${currentTurnPlayer.name} раскроет`} карту`}
+                          : `⏳ Ожидаем, когда ${currentTurnPlayer.name} раскроет карту`}
+                      </p>
+                    )}
+                    
+                    {/* Show status for current player */}
+                    {currentTurnPlayer && isMyTurn && !playerRevealed && (
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                        Нажмите "Мой персонаж" чтобы раскрыть карту
                       </p>
                     )}
                   </div>
@@ -410,16 +446,7 @@ function getPhaseControls(
         </button>
       ) : null;
     case 'turn':
-      // Player can click "Next Player" after revealing
-      if (isMyTurn && hasRevealed) {
-        return (
-          <button onClick={nextPlayerTurn} className="bunker-button flex items-center gap-2 mx-auto">
-            <span>Следующий игрок</span>
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        );
-      }
-      // Host can force next player
+      // "Next Player" button is now shown at the top, so we only show host skip option here
       if (isHost && !isMyTurn) {
         return (
           <button onClick={nextPlayerTurn} className="bunker-button-secondary text-sm">

@@ -110,10 +110,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return dbGameToGameState(game, players || []);
   }, []);
 
-  // Setup realtime subscription
+  // Setup realtime subscription with improved reliability
   const setupRealtimeSubscription = useCallback((gameId: string) => {
+    // Remove any existing channels first
+    supabase.removeAllChannels();
+    
     const channel = supabase
-      .channel(`game-${gameId}`)
+      .channel(`game-realtime-${gameId}-${Date.now()}`)
       .on(
         'postgres_changes',
         {
@@ -122,7 +125,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           table: 'games',
           filter: `id=eq.${gameId}`,
         },
-        async () => {
+        async (payload) => {
+          console.log('Game update received:', payload);
           const state = await fetchGameState(gameId);
           if (state) setGameState(state);
         }
@@ -135,12 +139,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
           table: 'players',
           filter: `game_id=eq.${gameId}`,
         },
-        async () => {
+        async (payload) => {
+          console.log('Players update received:', payload);
           const state = await fetchGameState(gameId);
           if (state) setGameState(state);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime subscription status:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -188,7 +195,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     const state = await fetchGameState(gameId);
     
-    if (state && state.players.find(p => p.id === playerId)) {
+    // Check if game exists and is not game over
+    if (!state) {
+      // Game doesn't exist anymore, clear session
+      localStorage.removeItem(GAME_ID_KEY);
+      localStorage.removeItem(PLAYER_ID_KEY);
+      setIsLoading(false);
+      return false;
+    }
+    
+    // If game is over, clear session
+    if (state.phase === 'gameover') {
+      localStorage.removeItem(GAME_ID_KEY);
+      localStorage.removeItem(PLAYER_ID_KEY);
+      setIsLoading(false);
+      return false;
+    }
+    
+    if (state.players.find(p => p.id === playerId)) {
       setGameState(state);
       setCurrentPlayerIdState(playerId);
       setupRealtimeSubscription(gameId);
@@ -196,6 +220,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return true;
     }
     
+    // Player not found in game
+    localStorage.removeItem(GAME_ID_KEY);
+    localStorage.removeItem(PLAYER_ID_KEY);
     setIsLoading(false);
     return false;
   }, [fetchGameState, setupRealtimeSubscription]);
