@@ -12,17 +12,24 @@ const HomePage = () => {
   const [gameCode, setGameCode] = useState('');
   const [mode, setMode] = useState<'none' | 'create' | 'join'>('none');
   const [error, setError] = useState('');
+  const { clearSession } = useGame();
 
-  // Redirect to active game if session is restored
+  // Redirect to active game if session is restored, but check if game is still valid
   useEffect(() => {
     if (gameState && currentPlayer) {
+      // If game is over, clear the session instead of redirecting
+      if (gameState.phase === 'gameover') {
+        clearSession();
+        return;
+      }
+      
       if (gameState.phase === 'lobby') {
         navigate(`/lobby/${gameState.id}`);
       } else {
         navigate(`/game/${gameState.id}`);
       }
     }
-  }, [gameState, currentPlayer, navigate]);
+  }, [gameState, currentPlayer, navigate, clearSession]);
 
   const handleCreateGame = async () => {
     if (!playerName.trim()) {
