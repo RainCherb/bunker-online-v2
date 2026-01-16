@@ -9,10 +9,7 @@ import GameInfo from '@/components/game/GameInfo';
 import VotingPanel from '@/components/game/VotingPanel';
 import GameOverScreen from '@/components/game/GameOverScreen';
 import GameTimer from '@/components/game/GameTimer';
-import { useGameTimer } from '@/hooks/useGameTimer';
-
-const TURN_TIME = 60; // 60 seconds per turn
-const DISCUSSION_TIME = 30; // 30 seconds for discussion after round 1
+import { useServerTimer } from '@/hooks/useServerTimer';
 
 const GamePage = () => {
   const { gameId } = useParams();
@@ -28,7 +25,9 @@ const GamePage = () => {
     isLoading,
     autoRevealRandomCharacteristic,
     hasRevealedThisTurn,
-    clearSession
+    clearSession,
+    phaseEndsAt,
+    turnHasRevealed
   } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
 
@@ -36,65 +35,59 @@ const GamePage = () => {
   const isMyTurn = currentTurnPlayer?.id === currentPlayer?.id;
   const isTurnPhase = gameState?.phase === 'turn';
   const isDiscussionPhase = gameState?.phase === 'discussion';
+  const playerRevealed = turnHasRevealed;
 
-  // Handle turn timeout
+  // Handle turn timeout - only host executes this
   const handleTurnTimeout = useCallback(async () => {
-    if (!currentTurnPlayer || !isTurnPhase) return;
+    if (!currentTurnPlayer || !isTurnPhase || !currentPlayer?.isHost) return;
+    
+    console.log('Turn timeout triggered, host executing...');
     
     // If current turn player hasn't revealed, auto-reveal for them
-    if (!hasRevealedThisTurn(currentTurnPlayer.id)) {
+    if (!turnHasRevealed) {
       await autoRevealRandomCharacteristic(currentTurnPlayer.id);
     }
     
-    // Move to next player (only host triggers this to avoid duplicates)
-    if (currentPlayer?.isHost) {
-      await nextPlayerTurn();
-    }
-  }, [currentTurnPlayer, isTurnPhase, hasRevealedThisTurn, autoRevealRandomCharacteristic, currentPlayer?.isHost, nextPlayerTurn]);
+    // Move to next player
+    await nextPlayerTurn();
+  }, [currentTurnPlayer, isTurnPhase, turnHasRevealed, autoRevealRandomCharacteristic, currentPlayer?.isHost, nextPlayerTurn]);
 
-  // Handle discussion timeout (after round 1)
+  // Handle discussion timeout (after round 1) - only host executes
   const handleDiscussionTimeout = useCallback(async () => {
-    if (!isDiscussionPhase || !currentPlayer?.isHost) return;
+    if (!isDiscussionPhase || !currentPlayer?.isHost || gameState?.currentRound !== 1) return;
+    console.log('Discussion timeout triggered, host executing...');
     await nextPhase();
-  }, [isDiscussionPhase, currentPlayer?.isHost, nextPhase]);
+  }, [isDiscussionPhase, currentPlayer?.isHost, nextPhase, gameState?.currentRound]);
 
-  // Turn timer
-  const turnTimer = useGameTimer({
-    initialTime: TURN_TIME,
+  // Server-synced turn timer
+  const turnTimer = useServerTimer({
+    phaseEndsAt: isTurnPhase ? phaseEndsAt : null,
     onTimeUp: handleTurnTimeout,
-    autoStart: false
+    enabled: isTurnPhase && currentPlayer?.isHost === true
   });
 
-  // Discussion timer
-  const discussionTimer = useGameTimer({
-    initialTime: DISCUSSION_TIME,
+  // Server-synced discussion timer (only for round 1)
+  const discussionTimer = useServerTimer({
+    phaseEndsAt: isDiscussionPhase && gameState?.currentRound === 1 ? phaseEndsAt : null,
     onTimeUp: handleDiscussionTimeout,
-    autoStart: false
+    enabled: isDiscussionPhase && gameState?.currentRound === 1 && currentPlayer?.isHost === true
   });
 
-  // Start turn timer when phase is 'turn' and player index changes
-  useEffect(() => {
-    if (isTurnPhase && currentTurnPlayer) {
-      turnTimer.reset(TURN_TIME);
-      turnTimer.start();
-    } else {
-      turnTimer.stop();
-    }
-  }, [isTurnPhase, gameState?.currentPlayerIndex, currentTurnPlayer?.id]);
+  // Display timers for all users (not just host)
+  const displayTurnTimer = useServerTimer({
+    phaseEndsAt: isTurnPhase ? phaseEndsAt : null,
+    onTimeUp: () => {}, // Non-host doesn't trigger actions
+    enabled: isTurnPhase
+  });
 
-  // Start discussion timer after round 1
-  useEffect(() => {
-    if (isDiscussionPhase && gameState?.currentRound === 1) {
-      discussionTimer.reset(DISCUSSION_TIME);
-      discussionTimer.start();
-    } else {
-      discussionTimer.stop();
-    }
-  }, [isDiscussionPhase, gameState?.currentRound]);
+  const displayDiscussionTimer = useServerTimer({
+    phaseEndsAt: isDiscussionPhase && gameState?.currentRound === 1 ? phaseEndsAt : null,
+    onTimeUp: () => {},
+    enabled: isDiscussionPhase && gameState?.currentRound === 1
+  });
 
   // Handle next player button click
   const handleNextPlayer = async () => {
-    turnTimer.stop();
     await nextPlayerTurn();
   };
 
@@ -145,7 +138,6 @@ const GamePage = () => {
   const alivePlayers = gameState.players.filter(p => !p.isEliminated);
   const isVotingPhase = gameState.phase === 'voting' || gameState.phase === 'defense';
   const isResultsPhase = gameState.phase === 'results';
-  const playerRevealed = currentTurnPlayer ? hasRevealedThisTurn(currentTurnPlayer.id) : false;
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -220,8 +212,8 @@ const GamePage = () => {
                 {isTurnPhase && (
                   <div className="mt-3 sm:mt-4 flex flex-col items-center gap-2">
                     <GameTimer 
-                      timeRemaining={turnTimer.timeRemaining} 
-                      isRunning={turnTimer.isRunning}
+                      timeRemaining={displayTurnTimer.timeRemaining} 
+                      isRunning={displayTurnTimer.isRunning}
                       label="До конца хода"
                     />
                     
@@ -283,8 +275,8 @@ const GamePage = () => {
                 {isDiscussionPhase && gameState.currentRound === 1 && (
                   <div className="mt-3 sm:mt-4">
                     <GameTimer 
-                      timeRemaining={discussionTimer.timeRemaining} 
-                      isRunning={discussionTimer.isRunning}
+                      timeRemaining={displayDiscussionTimer.timeRemaining} 
+                      isRunning={displayDiscussionTimer.isRunning}
                       label="До следующего раунда"
                     />
                     <p className="text-xs sm:text-sm text-muted-foreground mt-2">

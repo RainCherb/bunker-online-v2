@@ -24,7 +24,7 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
   const currentTurnPlayer = getCurrentTurnPlayer();
   const isMyTurn = isTurnPhase && currentTurnPlayer?.id === currentPlayer?.id;
   const availableChars = isOwn ? getAvailableCharacteristics(player.id) : [];
-  const hasRevealed = isOwn ? hasRevealedThisTurn(player.id) : false;
+  const hasRevealed = isOwn ? hasRevealedThisTurn() : false;
   const currentRound = gameState?.currentRound || 1;
 
   const handleReveal = async (key: keyof Characteristics) => {
