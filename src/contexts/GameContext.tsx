@@ -79,6 +79,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [turnHasRevealed, setTurnHasRevealed] = useState(false);
   const db = useGameDatabase();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentPlayer = gameState?.players.find(p => p.id === currentPlayerId) || null;
 
@@ -117,7 +118,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return { state, phaseEndsAt: endsAt, turnHasRevealed: revealed };
   }, []);
 
-  // Setup realtime subscription
+  // Setup realtime subscription with polling fallback
   const setupRealtimeSubscription = useCallback((gameId: string) => {
     // Remove existing channel if any
     if (channelRef.current) {
@@ -125,8 +126,26 @@ export function GameProvider({ children }: { children: ReactNode }) {
       channelRef.current = null;
     }
     
+    // Clear any existing polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
+    let lastUpdateTime = Date.now();
+    
+    const refreshState = async () => {
+      const result = await fetchGameState(gameId);
+      if (result) {
+        setGameState(result.state);
+        setPhaseEndsAt(result.phaseEndsAt);
+        setTurnHasRevealed(result.turnHasRevealed);
+        lastUpdateTime = Date.now();
+      }
+    };
+    
     const channel = supabase
-      .channel(`game-${gameId}`)
+      .channel(`game-realtime-${gameId}`)
       .on(
         'postgres_changes',
         {
@@ -136,13 +155,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
           filter: `id=eq.${gameId}`,
         },
         async (payload) => {
-          console.log('Game update received:', payload);
-          const result = await fetchGameState(gameId);
-          if (result) {
-            setGameState(result.state);
-            setPhaseEndsAt(result.phaseEndsAt);
-            setTurnHasRevealed(result.turnHasRevealed);
-          }
+          console.log('[Realtime] Game update received:', payload.eventType);
+          await refreshState();
         }
       )
       .on(
@@ -154,25 +168,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
           filter: `game_id=eq.${gameId}`,
         },
         async (payload) => {
-          console.log('Players update received:', payload);
-          const result = await fetchGameState(gameId);
-          if (result) {
-            setGameState(result.state);
-            setPhaseEndsAt(result.phaseEndsAt);
-            setTurnHasRevealed(result.turnHasRevealed);
-          }
+          console.log('[Realtime] Players update received:', payload.eventType);
+          await refreshState();
         }
       )
       .subscribe((status) => {
-        console.log('Realtime subscription status:', status);
+        console.log('[Realtime] Subscription status:', status);
       });
 
     channelRef.current = channel;
+
+    // Polling fallback - check every 2 seconds if no realtime update received
+    pollingIntervalRef.current = setInterval(async () => {
+      const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+      // If no update in 3 seconds, poll manually
+      if (timeSinceLastUpdate > 3000) {
+        console.log('[Polling] Fallback poll triggered');
+        await refreshState();
+      }
+    }, 2000);
 
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
   }, [fetchGameState]);
@@ -332,8 +355,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const success = await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
     
     if (success) {
-      // Mark that this turn has revealed in DB
-      await db.updateGamePhase(gameState.id, { turn_has_revealed: true });
+      // Mark that this turn has revealed and set new timer (5 minutes after reveal)
+      const newEndsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      console.log('[Reveal] Card revealed, setting 5 min timer');
+      await db.updateGamePhase(gameState.id, { 
+        turn_has_revealed: true,
+        phase_ends_at: newEndsAt
+      });
     }
     
     return success;
@@ -347,14 +375,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!player) return;
 
     const available = getAvailableCharacteristics(playerId);
-    if (available.length === 0) return;
+    if (available.length === 0) {
+      console.log('[AutoReveal] No available characteristics');
+      return;
+    }
 
     // Pick the first available
     const characteristic = available[0];
+    console.log('[AutoReveal] Auto-revealing:', characteristic, 'for player:', player.name);
     
     // Directly update DB to avoid canReveal checks since this is auto-reveal
     await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
-    await db.updateGamePhase(gameState.id, { turn_has_revealed: true });
+    
+    // Set 5 minute timer after auto-reveal
+    const newEndsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    await db.updateGamePhase(gameState.id, { 
+      turn_has_revealed: true,
+      phase_ends_at: newEndsAt
+    });
   }, [gameState, getAvailableCharacteristics, db]);
 
   // Move to next player turn
@@ -364,14 +402,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const nextIndex = gameState.currentPlayerIndex + 1;
     
-    // Calculate new phase_ends_at (60 seconds from now)
+    // Calculate new phase_ends_at (60 seconds for next player to reveal)
     const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
+    
+    console.log('[NextTurn] Moving to next player, nextIndex:', nextIndex, 'total alive:', alivePlayers.length);
     
     // If all players have had their turn
     if (nextIndex >= alivePlayers.length) {
       // Round 1: Go to discussion for 30 seconds, then next round
       if (gameState.currentRound === 1) {
         const discussionEndsAt = new Date(Date.now() + 30 * 1000).toISOString();
+        console.log('[NextTurn] All players done in round 1, going to discussion');
         await db.updateGamePhase(gameState.id, { 
           phase: 'discussion',
           current_player_index: 0,
@@ -380,6 +421,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Round 2+: Go to voting
+        console.log('[NextTurn] All players done in round', gameState.currentRound, ', going to defense');
         await db.updateGamePhase(gameState.id, { 
           phase: 'defense',
           current_player_index: 0,
@@ -388,6 +430,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       }
     } else {
+      console.log('[NextTurn] Moving to player index:', nextIndex);
       await db.updateGamePhase(gameState.id, { 
         current_player_index: nextIndex,
         phase_ends_at: newEndsAt,
@@ -537,6 +580,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
     setGameState(null);
     setCurrentPlayerIdState(null);
     setPhaseEndsAt(null);
@@ -559,6 +606,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+      }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
   }, []);

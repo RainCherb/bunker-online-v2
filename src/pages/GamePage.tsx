@@ -9,7 +9,9 @@ import GameInfo from '@/components/game/GameInfo';
 import VotingPanel from '@/components/game/VotingPanel';
 import GameOverScreen from '@/components/game/GameOverScreen';
 import GameTimer from '@/components/game/GameTimer';
+import PlayerDetailModal from '@/components/game/PlayerDetailModal';
 import { useServerTimer } from '@/hooks/useServerTimer';
+import { Player } from '@/types/game';
 
 const GamePage = () => {
   const { gameId } = useParams();
@@ -30,6 +32,7 @@ const GamePage = () => {
     turnHasRevealed
   } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
 
   const currentTurnPlayer = getCurrentTurnPlayer();
   const isMyTurn = currentTurnPlayer?.id === currentPlayer?.id;
@@ -41,15 +44,20 @@ const GamePage = () => {
   const handleTurnTimeout = useCallback(async () => {
     if (!currentTurnPlayer || !isTurnPhase || !currentPlayer?.isHost) return;
     
-    console.log('Turn timeout triggered, host executing...');
+    console.log('[Timeout] Turn timeout triggered, host executing...');
+    console.log('[Timeout] turnHasRevealed:', turnHasRevealed);
     
-    // If current turn player hasn't revealed, auto-reveal for them
+    // If current turn player hasn't revealed, auto-reveal for them first
     if (!turnHasRevealed) {
+      console.log('[Timeout] Auto-revealing for player:', currentTurnPlayer.name);
       await autoRevealRandomCharacteristic(currentTurnPlayer.id);
+      // After auto-reveal, the timer will be reset to 5 minutes
+      // The next timeout will then call nextPlayerTurn
+    } else {
+      // Player already revealed, time for discussion is up - move to next player
+      console.log('[Timeout] Player already revealed, moving to next player');
+      await nextPlayerTurn();
     }
-    
-    // Move to next player
-    await nextPlayerTurn();
   }, [currentTurnPlayer, isTurnPhase, turnHasRevealed, autoRevealRandomCharacteristic, currentPlayer?.isHost, nextPlayerTurn]);
 
   // Handle discussion timeout (after round 1) - only host executes
@@ -214,7 +222,7 @@ const GamePage = () => {
                     <GameTimer 
                       timeRemaining={displayTurnTimer.timeRemaining} 
                       isRunning={displayTurnTimer.isRunning}
-                      label="До конца хода"
+                      label={playerRevealed ? "Время на обсуждение" : "До автораскрытия карты"}
                     />
                     
                     {/* Current turn indicator OR Next player button */}
@@ -308,14 +316,19 @@ const GamePage = () => {
               {/* Players Grid - Mobile optimized */}
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
                 {gameState.players.map((player, index) => (
-                  <PlayerCard
+                  <div 
                     key={player.id}
-                    player={player}
-                    index={index}
-                    isCurrentPlayer={player.id === currentPlayer.id}
-                    isCurrentTurn={currentTurnPlayer?.id === player.id && isTurnPhase}
-                    hasRevealedThisTurn={playerRevealed && currentTurnPlayer?.id === player.id}
-                  />
+                    onClick={() => setSelectedPlayer(player)}
+                    className="cursor-pointer"
+                  >
+                    <PlayerCard
+                      player={player}
+                      index={index}
+                      isCurrentPlayer={player.id === currentPlayer.id}
+                      isCurrentTurn={currentTurnPlayer?.id === player.id && isTurnPhase}
+                      hasRevealedThisTurn={playerRevealed && currentTurnPlayer?.id === player.id}
+                    />
+                  </div>
                 ))}
               </div>
 
@@ -348,6 +361,14 @@ const GamePage = () => {
                 onClose={() => setShowCharacterPanel(false)}
               />
             </aside>
+          )}
+
+          {/* Player Detail Modal */}
+          {selectedPlayer && (
+            <PlayerDetailModal 
+              player={selectedPlayer} 
+              onClose={() => setSelectedPlayer(null)} 
+            />
           )}
         </main>
 

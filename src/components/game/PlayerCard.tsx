@@ -21,9 +21,10 @@ const PlayerCard = ({ player, index, isCurrentPlayer, isCurrentTurn, hasRevealed
       initial={{ opacity: 0, scale: 0.8 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: index * 0.03 }}
+      whileHover={{ scale: 1.02 }}
       className={`player-card relative ${player.isEliminated ? 'eliminated opacity-60' : ''} ${
         isCurrentTurn && !player.isEliminated ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''
-      }`}
+      } hover:border-primary/50 transition-colors`}
     >
       {/* Current turn indicator */}
       {isCurrentTurn && !player.isEliminated && isTurnPhase && (
@@ -105,6 +106,13 @@ const PlayerCard = ({ player, index, isCurrentPlayer, isCurrentTurn, hasRevealed
           );
         })}
       </div>
+
+      {/* Clickable hint */}
+      {player.revealedCharacteristics.length > 0 && (
+        <p className="text-[10px] text-muted-foreground text-center mt-2 opacity-70">
+          Нажмите для подробностей
+        </p>
+      )}
 
       {/* Votes indicator */}
       {isVoting && player.votesAgainst > 0 && !player.isEliminated && (
