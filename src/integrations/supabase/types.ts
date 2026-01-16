@@ -29,7 +29,9 @@ export type Database = {
           id: string
           max_rounds: number
           phase: string
+          phase_ends_at: string | null
           time_remaining: number
+          turn_has_revealed: boolean
           updated_at: string
           votes: Json
           voting_phase: string
@@ -48,7 +50,9 @@ export type Database = {
           id: string
           max_rounds?: number
           phase?: string
+          phase_ends_at?: string | null
           time_remaining?: number
+          turn_has_revealed?: boolean
           updated_at?: string
           votes?: Json
           voting_phase?: string
@@ -67,7 +71,9 @@ export type Database = {
           id?: string
           max_rounds?: number
           phase?: string
+          phase_ends_at?: string | null
           time_remaining?: number
+          turn_has_revealed?: boolean
           updated_at?: string
           votes?: Json
           voting_phase?: string

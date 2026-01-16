@@ -89,6 +89,8 @@ export function useGameDatabase() {
         time_remaining: 60,
         voting_phase: 'none',
         votes: {},
+        phase_ends_at: null,
+        turn_has_revealed: false,
       });
 
     if (gameError) {
@@ -219,6 +221,8 @@ export function useGameDatabase() {
         phase: 'introduction',
         current_round: 1,
         bunker_slots: bunkerSlots,
+        phase_ends_at: null,
+        turn_has_revealed: false,
       })
       .eq('id', gameId);
 
@@ -263,6 +267,8 @@ export function useGameDatabase() {
     current_round: number;
     current_player_index: number;
     votes: Record<string, string>;
+    phase_ends_at: string | null;
+    turn_has_revealed: boolean;
   }>): Promise<boolean> => {
     const { error } = await supabase
       .from('games')

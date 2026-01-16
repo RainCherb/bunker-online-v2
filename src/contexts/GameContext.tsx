@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB, CHARACTERISTICS_ORDER } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { useGameDatabase } from '@/hooks/useGameDatabase';
@@ -24,7 +24,9 @@ interface GameContextType {
   canRevealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => boolean;
   getAvailableCharacteristics: (playerId: string) => (keyof Characteristics)[];
   autoRevealRandomCharacteristic: (playerId: string) => Promise<void>;
-  hasRevealedThisTurn: (playerId: string) => boolean;
+  hasRevealedThisTurn: () => boolean;
+  phaseEndsAt: Date | null;
+  turnHasRevealed: boolean;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -32,7 +34,6 @@ const GameContext = createContext<GameContextType | undefined>(undefined);
 // Storage keys
 const PLAYER_ID_KEY = 'bunker_player_id';
 const GAME_ID_KEY = 'bunker_game_id';
-const REVEALED_THIS_TURN_KEY = 'bunker_revealed_this_turn';
 
 // Transform database row to Player type
 const dbPlayerToPlayer = (row: any): Player => ({
@@ -74,8 +75,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [currentPlayerId, setCurrentPlayerIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [revealedThisTurn, setRevealedThisTurn] = useState<Set<string>>(new Set());
+  const [phaseEndsAt, setPhaseEndsAt] = useState<Date | null>(null);
+  const [turnHasRevealed, setTurnHasRevealed] = useState(false);
   const db = useGameDatabase();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const currentPlayer = gameState?.players.find(p => p.id === currentPlayerId) || null;
 
@@ -86,7 +89,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Fetch game state from database
-  const fetchGameState = useCallback(async (gameId: string): Promise<GameState | null> => {
+  const fetchGameState = useCallback(async (gameId: string): Promise<{ state: GameState; phaseEndsAt: Date | null; turnHasRevealed: boolean } | null> => {
     const { data: game, error: gameError } = await supabase
       .from('games')
       .select('*')
@@ -107,16 +110,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    return dbGameToGameState(game, players || []);
+    const state = dbGameToGameState(game, players || []);
+    const endsAt = game.phase_ends_at ? new Date(game.phase_ends_at) : null;
+    const revealed = game.turn_has_revealed || false;
+    
+    return { state, phaseEndsAt: endsAt, turnHasRevealed: revealed };
   }, []);
 
-  // Setup realtime subscription with improved reliability
+  // Setup realtime subscription
   const setupRealtimeSubscription = useCallback((gameId: string) => {
-    // Remove any existing channels first
-    supabase.removeAllChannels();
+    // Remove existing channel if any
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
     
     const channel = supabase
-      .channel(`game-realtime-${gameId}-${Date.now()}`)
+      .channel(`game-${gameId}`)
       .on(
         'postgres_changes',
         {
@@ -127,8 +137,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           console.log('Game update received:', payload);
-          const state = await fetchGameState(gameId);
-          if (state) setGameState(state);
+          const result = await fetchGameState(gameId);
+          if (result) {
+            setGameState(result.state);
+            setPhaseEndsAt(result.phaseEndsAt);
+            setTurnHasRevealed(result.turnHasRevealed);
+          }
         }
       )
       .on(
@@ -141,16 +155,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
         },
         async (payload) => {
           console.log('Players update received:', payload);
-          const state = await fetchGameState(gameId);
-          if (state) setGameState(state);
+          const result = await fetchGameState(gameId);
+          if (result) {
+            setGameState(result.state);
+            setPhaseEndsAt(result.phaseEndsAt);
+            setTurnHasRevealed(result.turnHasRevealed);
+          }
         }
       )
       .subscribe((status) => {
         console.log('Realtime subscription status:', status);
       });
 
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [fetchGameState]);
 
@@ -162,8 +185,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (result) {
       saveSession(result.gameId, result.playerId);
       setCurrentPlayerIdState(result.playerId);
-      const state = await fetchGameState(result.gameId);
-      if (state) setGameState(state);
+      const fetchResult = await fetchGameState(result.gameId);
+      if (fetchResult) {
+        setGameState(fetchResult.state);
+        setPhaseEndsAt(fetchResult.phaseEndsAt);
+        setTurnHasRevealed(fetchResult.turnHasRevealed);
+      }
       setupRealtimeSubscription(result.gameId);
     }
     
@@ -179,8 +206,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (result) {
       saveSession(gameId, result.playerId);
       setCurrentPlayerIdState(result.playerId);
-      const state = await fetchGameState(gameId);
-      if (state) setGameState(state);
+      const fetchResult = await fetchGameState(gameId);
+      if (fetchResult) {
+        setGameState(fetchResult.state);
+        setPhaseEndsAt(fetchResult.phaseEndsAt);
+        setTurnHasRevealed(fetchResult.turnHasRevealed);
+      }
       setupRealtimeSubscription(gameId);
       setIsLoading(false);
       return true;
@@ -193,11 +224,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Load existing game from session
   const loadGame = useCallback(async (gameId: string, playerId: string): Promise<boolean> => {
     setIsLoading(true);
-    const state = await fetchGameState(gameId);
+    const result = await fetchGameState(gameId);
     
     // Check if game exists and is not game over
-    if (!state) {
-      // Game doesn't exist anymore, clear session
+    if (!result) {
       localStorage.removeItem(GAME_ID_KEY);
       localStorage.removeItem(PLAYER_ID_KEY);
       setIsLoading(false);
@@ -205,15 +235,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
     
     // If game is over, clear session
-    if (state.phase === 'gameover') {
+    if (result.state.phase === 'gameover') {
       localStorage.removeItem(GAME_ID_KEY);
       localStorage.removeItem(PLAYER_ID_KEY);
       setIsLoading(false);
       return false;
     }
     
-    if (state.players.find(p => p.id === playerId)) {
-      setGameState(state);
+    if (result.state.players.find(p => p.id === playerId)) {
+      setGameState(result.state);
+      setPhaseEndsAt(result.phaseEndsAt);
+      setTurnHasRevealed(result.turnHasRevealed);
       setCurrentPlayerIdState(playerId);
       setupRealtimeSubscription(gameId);
       setIsLoading(false);
@@ -231,7 +263,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startGame = useCallback(async () => {
     if (!gameState || gameState.players.length < 6) return;
     await db.startGame(gameState.id);
-    setRevealedThisTurn(new Set());
   }, [gameState, db]);
 
   // Get current turn player
@@ -242,10 +273,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return alivePlayers[gameState.currentPlayerIndex];
   }, [gameState]);
 
-  // Check if player already revealed this turn
-  const hasRevealedThisTurn = useCallback((playerId: string): boolean => {
-    return revealedThisTurn.has(playerId);
-  }, [revealedThisTurn]);
+  // Check if current turn player has revealed this turn (from DB state)
+  const hasRevealedThisTurn = useCallback((): boolean => {
+    return turnHasRevealed;
+  }, [turnHasRevealed]);
 
   // Get available characteristics for a player based on round
   const getAvailableCharacteristics = useCallback((playerId: string): (keyof Characteristics)[] => {
@@ -280,7 +311,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (currentTurnPlayer?.id !== playerId) return false;
 
     // Check if already revealed this turn
-    if (revealedThisTurn.has(playerId)) return false;
+    if (turnHasRevealed) return false;
 
     // Round 1: Only profession allowed
     if (gameState.currentRound === 1) {
@@ -288,19 +319,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     return true;
-  }, [gameState, getCurrentTurnPlayer, revealedThisTurn]);
+  }, [gameState, getCurrentTurnPlayer, turnHasRevealed]);
 
   // Reveal a characteristic
   const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics): Promise<boolean> => {
     if (!canRevealCharacteristic(playerId, characteristic)) return false;
+    if (!gameState) return false;
 
-    const player = gameState?.players.find(p => p.id === playerId);
+    const player = gameState.players.find(p => p.id === playerId);
     if (!player) return false;
 
     const success = await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
     
     if (success) {
-      setRevealedThisTurn(prev => new Set(prev).add(playerId));
+      // Mark that this turn has revealed in DB
+      await db.updateGamePhase(gameState.id, { turn_has_revealed: true });
     }
     
     return success;
@@ -308,13 +341,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Auto reveal a random characteristic (for timeout)
   const autoRevealRandomCharacteristic = useCallback(async (playerId: string): Promise<void> => {
+    if (!gameState) return;
+    
+    const player = gameState.players.find(p => p.id === playerId);
+    if (!player) return;
+
     const available = getAvailableCharacteristics(playerId);
     if (available.length === 0) return;
 
-    // Pick the first available (or random)
+    // Pick the first available
     const characteristic = available[0];
-    await revealCharacteristic(playerId, characteristic);
-  }, [getAvailableCharacteristics, revealCharacteristic]);
+    
+    // Directly update DB to avoid canReveal checks since this is auto-reveal
+    await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
+    await db.updateGamePhase(gameState.id, { turn_has_revealed: true });
+  }, [gameState, getAvailableCharacteristics, db]);
 
   // Move to next player turn
   const nextPlayerTurn = useCallback(async () => {
@@ -323,27 +364,34 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const nextIndex = gameState.currentPlayerIndex + 1;
     
-    // Clear revealed this turn for new player
-    setRevealedThisTurn(new Set());
+    // Calculate new phase_ends_at (60 seconds from now)
+    const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
     
     // If all players have had their turn
     if (nextIndex >= alivePlayers.length) {
       // Round 1: Go to discussion for 30 seconds, then next round
       if (gameState.currentRound === 1) {
+        const discussionEndsAt = new Date(Date.now() + 30 * 1000).toISOString();
         await db.updateGamePhase(gameState.id, { 
           phase: 'discussion',
-          current_player_index: 0
+          current_player_index: 0,
+          phase_ends_at: discussionEndsAt,
+          turn_has_revealed: false
         });
       } else {
         // Round 2+: Go to voting
         await db.updateGamePhase(gameState.id, { 
           phase: 'defense',
-          current_player_index: 0
+          current_player_index: 0,
+          phase_ends_at: null,
+          turn_has_revealed: false
         });
       }
     } else {
       await db.updateGamePhase(gameState.id, { 
-        current_player_index: nextIndex 
+        current_player_index: nextIndex,
+        phase_ends_at: newEndsAt,
+        turn_has_revealed: false
       });
     }
   }, [gameState, db]);
@@ -356,52 +404,59 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     // Check if game should end
     if (alivePlayers.length <= gameState.bunkerSlots) {
-      await db.updateGamePhase(gameState.id, { phase: 'gameover' });
+      await db.updateGamePhase(gameState.id, { phase: 'gameover', phase_ends_at: null });
       return;
     }
 
     // Phase progression logic
     switch (gameState.phase) {
       case 'introduction':
-        setRevealedThisTurn(new Set());
+        // Start first turn with timer
+        const turnEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
         await db.updateGamePhase(gameState.id, { 
           phase: 'turn',
-          current_player_index: 0
+          current_player_index: 0,
+          phase_ends_at: turnEndsAt,
+          turn_has_revealed: false
         });
         break;
       case 'turn':
-        await db.updateGamePhase(gameState.id, { phase: 'discussion' });
+        await db.updateGamePhase(gameState.id, { phase: 'discussion', phase_ends_at: null, turn_has_revealed: false });
         break;
       case 'discussion':
         // After round 1 discussion, start round 2
         if (gameState.currentRound === 1) {
-          setRevealedThisTurn(new Set());
+          const round2EndsAt = new Date(Date.now() + 60 * 1000).toISOString();
           await db.updateGamePhase(gameState.id, { 
             phase: 'turn',
             current_round: 2,
-            current_player_index: 0
+            current_player_index: 0,
+            phase_ends_at: round2EndsAt,
+            turn_has_revealed: false
           });
         } else {
-          await db.updateGamePhase(gameState.id, { phase: 'defense' });
+          await db.updateGamePhase(gameState.id, { phase: 'defense', phase_ends_at: null, turn_has_revealed: false });
         }
         break;
       case 'defense':
-        await db.updateGamePhase(gameState.id, { phase: 'voting' });
+        await db.updateGamePhase(gameState.id, { phase: 'voting', phase_ends_at: null });
         break;
       case 'voting':
-        await db.updateGamePhase(gameState.id, { phase: 'results' });
+        await db.updateGamePhase(gameState.id, { phase: 'results', phase_ends_at: null });
         break;
       case 'results':
-        await db.updateGamePhase(gameState.id, { phase: 'farewell' });
+        await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
         break;
       case 'farewell':
         // Start new round
-        setRevealedThisTurn(new Set());
+        const nextRoundEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
         await db.resetVotes(gameState.id);
         await db.updateGamePhase(gameState.id, {
           phase: 'turn',
           current_round: gameState.currentRound + 1,
           current_player_index: 0,
+          phase_ends_at: nextRoundEndsAt,
+          turn_has_revealed: false
         });
         break;
       default:
@@ -418,8 +473,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     if (maxVotes === 0) {
       // No votes cast, skip elimination
-      setRevealedThisTurn(new Set());
-      await db.updateGamePhase(gameState.id, { phase: 'turn' });
+      const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
+      await db.updateGamePhase(gameState.id, { phase: 'turn', phase_ends_at: newEndsAt, turn_has_revealed: false });
       await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, {
         current_round: gameState.currentRound + 1,
@@ -433,11 +488,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     if (playersWithMaxVotes.length === 1) {
       await db.eliminatePlayer(playersWithMaxVotes[0].id);
-      await db.updateGamePhase(gameState.id, { phase: 'farewell' });
+      await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
     } else {
       // Tie - eliminate the first one
       await db.eliminatePlayer(playersWithMaxVotes[0].id);
-      await db.updateGamePhase(gameState.id, { phase: 'farewell' });
+      await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
     }
   }, [gameState, db]);
 
@@ -455,12 +510,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Skip voting (first round only)
   const skipVoting = useCallback(async () => {
     if (!gameState || gameState.currentRound !== 1) return;
-    setRevealedThisTurn(new Set());
+    const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
     await db.resetVotes(gameState.id);
     await db.updateGamePhase(gameState.id, {
       phase: 'turn',
       current_round: gameState.currentRound + 1,
       current_player_index: 0,
+      phase_ends_at: newEndsAt,
+      turn_has_revealed: false
     });
   }, [gameState, db]);
 
@@ -476,10 +533,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const clearSession = useCallback(() => {
     localStorage.removeItem(GAME_ID_KEY);
     localStorage.removeItem(PLAYER_ID_KEY);
-    localStorage.removeItem(REVEALED_THIS_TURN_KEY);
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
     setGameState(null);
     setCurrentPlayerIdState(null);
-    setRevealedThisTurn(new Set());
+    setPhaseEndsAt(null);
+    setTurnHasRevealed(false);
   }, []);
 
   // Check for existing session on mount
@@ -491,6 +552,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       loadGame(savedGameId, savedPlayerId);
     }
   }, [loadGame]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <GameContext.Provider value={{
@@ -515,6 +586,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getAvailableCharacteristics,
       autoRevealRandomCharacteristic,
       hasRevealedThisTurn,
+      phaseEndsAt,
+      turnHasRevealed,
     }}>
       {children}
     </GameContext.Provider>
