@@ -37,7 +37,7 @@ const bunkerToDBFormat = (bunker: ReturnType<typeof getRandomBunker>): BunkerDB 
 const catastropheToDBFormat = (cat: ReturnType<typeof getRandomCatastrophe>): CatastropheDB => ({
   name: cat.name,
   description: cat.description,
-  survivalTime: cat.severity === 'critical' ? 'До 1 года' : cat.severity === 'severe' ? 'До 2 лет' : 'До 5 лет',
+  survivalTime: cat.survivalCondition,
 });
 
 // Transform database row to Player type
