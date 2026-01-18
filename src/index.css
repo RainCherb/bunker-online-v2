@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+/* Fonts loaded via link preload in index.html for better performance */
 
 @tailwind base;
 
@@ -128,147 +128,118 @@
 
 @layer utilities {
   .text-glow {
-    text-shadow: 0 0 10px hsl(var(--primary) / 0.8),
-                 0 0 20px hsl(var(--primary) / 0.5),
-                 0 0 40px hsl(var(--primary) / 0.3);
+    text-shadow: 0 0 10px hsl(var(--primary) / 0.6);
   }
 
   .text-glow-warning {
-    text-shadow: 0 0 10px hsl(var(--secondary) / 0.8),
-                 0 0 20px hsl(var(--secondary) / 0.5);
+    text-shadow: 0 0 10px hsl(var(--secondary) / 0.6);
   }
 
   .text-glow-danger {
-    text-shadow: 0 0 10px hsl(var(--danger) / 0.8),
-                 0 0 20px hsl(var(--danger) / 0.5);
+    text-shadow: 0 0 10px hsl(var(--danger) / 0.6);
   }
 
   .box-glow {
-    box-shadow: 0 0 15px hsl(var(--primary) / 0.3),
-                0 0 30px hsl(var(--primary) / 0.1),
-                inset 0 0 15px hsl(var(--primary) / 0.05);
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.2);
   }
 
   .box-glow-warning {
-    box-shadow: 0 0 15px hsl(var(--secondary) / 0.3),
-                0 0 30px hsl(var(--secondary) / 0.1);
+    box-shadow: 0 0 10px hsl(var(--secondary) / 0.2);
   }
 
   .box-glow-danger {
-    box-shadow: 0 0 15px hsl(var(--danger) / 0.4),
-                0 0 30px hsl(var(--danger) / 0.2);
+    box-shadow: 0 0 10px hsl(var(--danger) / 0.3);
   }
 
   .bunker-border {
     border: 2px solid hsl(var(--primary) / 0.5);
-    background: linear-gradient(135deg, 
-      hsl(var(--card)) 0%, 
-      hsl(var(--muted)) 100%);
+    background: hsl(var(--card));
   }
 
   .steel-texture {
-    background: linear-gradient(135deg,
-      hsl(var(--bunker-steel)) 0%,
-      hsl(220 10% 20%) 50%,
-      hsl(var(--bunker-steel)) 100%);
+    background: hsl(var(--bunker-steel));
   }
 
+  /* Simplified for mobile performance */
   .radiation-gradient {
     background: radial-gradient(ellipse at center,
-      hsl(var(--primary) / 0.2) 0%,
-      transparent 70%);
+      hsl(var(--primary) / 0.15) 0%,
+      transparent 60%);
   }
 
+  /* Disabled on mobile for performance */
   .scanline {
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      hsl(var(--primary) / 0.03) 2px,
-      hsl(var(--primary) / 0.03) 4px
-    );
+    background: transparent;
+  }
+  
+  @media (min-width: 1024px) {
+    .scanline {
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        hsl(var(--primary) / 0.02) 3px,
+        hsl(var(--primary) / 0.02) 6px
+      );
+    }
   }
 }
 
 @layer components {
   .bunker-card {
-    @apply relative overflow-hidden rounded-lg border-2 border-primary/30 bg-card p-6;
-    background: linear-gradient(145deg, 
-      hsl(var(--card)) 0%, 
-      hsl(var(--muted) / 0.5) 100%);
-  }
-
-  .bunker-card::before {
-    content: '';
-    @apply absolute inset-0 pointer-events-none opacity-50;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      hsl(var(--primary) / 0.02) 2px,
-      hsl(var(--primary) / 0.02) 4px
-    );
+    @apply relative overflow-hidden rounded-lg border-2 border-primary/30 bg-card p-4 sm:p-6;
   }
 
   .bunker-button {
     @apply relative font-display font-bold uppercase tracking-wider;
-    @apply px-8 py-4 rounded-md;
+    @apply px-6 py-3 sm:px-8 sm:py-4 rounded-md;
     @apply bg-primary text-primary-foreground;
-    @apply transition-all duration-300;
-    @apply hover:scale-105;
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.4),
-                inset 0 0 20px hsl(0 0% 100% / 0.1);
+    @apply transition-all duration-200;
+    @apply active:scale-95;
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.3);
   }
 
   .bunker-button:hover {
-    box-shadow: 0 0 30px hsl(var(--primary) / 0.6),
-                0 0 60px hsl(var(--primary) / 0.3),
-                inset 0 0 20px hsl(0 0% 100% / 0.2);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.4);
   }
 
   .bunker-button-secondary {
     @apply bunker-button;
     @apply bg-muted text-foreground border-2 border-primary/50;
-    box-shadow: 0 0 10px hsl(var(--primary) / 0.2),
-                inset 0 0 10px hsl(var(--primary) / 0.05);
+    box-shadow: none;
   }
 
   .bunker-button-secondary:hover {
     @apply bg-primary/20;
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.4),
-                inset 0 0 20px hsl(var(--primary) / 0.1);
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.2);
   }
 
   .bunker-button-danger {
     @apply bunker-button;
     @apply bg-destructive text-destructive-foreground;
-    box-shadow: 0 0 20px hsl(var(--danger) / 0.4);
+    box-shadow: 0 0 10px hsl(var(--danger) / 0.3);
   }
 
   .bunker-input {
-    @apply w-full px-4 py-3 rounded-md;
+    @apply w-full px-3 py-2.5 sm:px-4 sm:py-3 rounded-md;
     @apply bg-input border-2 border-primary/30;
-    @apply text-foreground font-body;
+    @apply text-foreground font-body text-base;
     @apply placeholder:text-muted-foreground;
     @apply focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20;
-    @apply transition-all duration-300;
-  }
-
-  .bunker-input:focus {
-    box-shadow: 0 0 15px hsl(var(--primary) / 0.2),
-                inset 0 0 10px hsl(var(--primary) / 0.05);
+    @apply transition-colors duration-200;
+    /* Prevent zoom on iOS */
+    font-size: 16px;
   }
 
   .characteristic-badge {
-    @apply inline-flex items-center gap-2 px-3 py-2 rounded-md;
+    @apply inline-flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-md;
     @apply bg-muted/50 border border-primary/20;
-    @apply text-sm font-medium;
-    @apply transition-all duration-300;
+    @apply text-xs sm:text-sm font-medium;
+    @apply transition-colors duration-200;
   }
 
   .characteristic-badge.revealed {
     @apply bg-primary/20 border-primary/50 text-primary;
-    box-shadow: 0 0 10px hsl(var(--primary) / 0.2);
   }
 
   .characteristic-badge.hidden {
@@ -276,14 +247,12 @@
   }
 
   .player-card {
-    @apply bunker-card cursor-pointer;
-    @apply transition-all duration-300;
+    @apply relative overflow-hidden rounded-lg border-2 border-primary/30 bg-card p-3 sm:p-4;
+    @apply transition-colors duration-200;
   }
 
   .player-card:hover {
-    @apply border-primary/60;
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
-    transform: translateY(-2px);
+    @apply border-primary/50;
   }
 
   .player-card.eliminated {
@@ -292,24 +261,22 @@
 
   .player-card.current-turn {
     @apply border-secondary;
-    box-shadow: 0 0 30px hsl(var(--secondary) / 0.5);
-    animation: pulse-warning 2s infinite;
+    box-shadow: 0 0 15px hsl(var(--secondary) / 0.3);
   }
 
   .vote-button {
-    @apply relative w-full py-3 rounded-md font-display uppercase tracking-wide;
+    @apply relative w-full py-2 sm:py-3 rounded-md font-display uppercase tracking-wide;
     @apply bg-destructive/20 border-2 border-destructive/50 text-destructive;
-    @apply transition-all duration-300;
+    @apply transition-colors duration-200;
+    @apply active:scale-95;
   }
 
   .vote-button:hover {
-    @apply bg-destructive/40 border-destructive;
-    box-shadow: 0 0 20px hsl(var(--danger) / 0.4);
+    @apply bg-destructive/30 border-destructive;
   }
 
   .vote-button.selected {
     @apply bg-destructive border-destructive text-destructive-foreground;
-    box-shadow: 0 0 30px hsl(var(--danger) / 0.6);
   }
 }
 
