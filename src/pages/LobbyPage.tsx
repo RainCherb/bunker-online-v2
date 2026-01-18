@@ -3,29 +3,35 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import { Shield, Users, Copy, Check, AlertTriangle, Play, Loader2, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 const LobbyPage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
-  const { gameState, currentPlayer, startGame, loadGame, isLoading, clearSession } = useGame();
+  const { gameState, currentPlayer, startGame, loadGame, isLoading, clearSession, isAuthLoading } = useGame();
+  const { userId, ensureAuthenticated } = useAuth();
   const [copied, setCopied] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
 
-  // Try to load game if not in state
+  // Try to load game if not in state - uses auth.uid() as player ID
   useEffect(() => {
-    if (!gameState && gameId) {
-      const savedPlayerId = localStorage.getItem('bunker_player_id');
-      if (savedPlayerId) {
-        loadGame(gameId, savedPlayerId).then((success) => {
+    const tryLoadGame = async () => {
+      if (!gameState && gameId && !isAuthLoading) {
+        // Ensure we're authenticated first
+        const user = await ensureAuthenticated();
+        if (user) {
+          const success = await loadGame(gameId, user.id);
           if (!success) {
             navigate('/');
           }
-        });
-      } else {
-        navigate('/');
+        } else {
+          navigate('/');
+        }
       }
-    }
-  }, [gameState, gameId, loadGame, navigate]);
+    };
+    
+    tryLoadGame();
+  }, [gameState, gameId, loadGame, navigate, isAuthLoading, ensureAuthenticated]);
 
   useEffect(() => {
     if (gameState && gameState.id !== gameId) {
@@ -61,7 +67,7 @@ const LobbyPage = () => {
   const canStart = gameState && gameState.players.length >= 6;
   const isHost = currentPlayer?.isHost;
 
-  if (isLoading || !gameState) {
+  if (isLoading || isAuthLoading || !gameState) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

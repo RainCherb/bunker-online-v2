@@ -12,10 +12,12 @@ import GameTimer from '@/components/game/GameTimer';
 import PlayerDetailModal from '@/components/game/PlayerDetailModal';
 import { useServerTimer } from '@/hooks/useServerTimer';
 import { Player } from '@/types/game';
+import { useAuth } from '@/hooks/useAuth';
 
 const GamePage = () => {
   const { gameId } = useParams();
   const navigate = useNavigate();
+  const { userId, ensureAuthenticated } = useAuth();
   const { 
     gameState, 
     currentPlayer, 
@@ -25,6 +27,7 @@ const GamePage = () => {
     getCurrentTurnPlayer, 
     loadGame, 
     isLoading,
+    isAuthLoading,
     autoRevealRandomCharacteristic,
     hasRevealedThisTurn,
     clearSession,
@@ -105,21 +108,25 @@ const GamePage = () => {
     navigate('/');
   };
 
-  // Try to load game if not in state
+  // Try to load game if not in state - uses auth.uid() as player ID
   useEffect(() => {
-    if (!gameState && gameId) {
-      const savedPlayerId = localStorage.getItem('bunker_player_id');
-      if (savedPlayerId) {
-        loadGame(gameId, savedPlayerId).then((success) => {
+    const tryLoadGame = async () => {
+      if (!gameState && gameId && !isAuthLoading) {
+        // Ensure we're authenticated first
+        const user = await ensureAuthenticated();
+        if (user) {
+          const success = await loadGame(gameId, user.id);
           if (!success) {
             navigate('/');
           }
-        });
-      } else {
-        navigate('/');
+        } else {
+          navigate('/');
+        }
       }
-    }
-  }, [gameState, gameId, loadGame, navigate]);
+    };
+    
+    tryLoadGame();
+  }, [gameState, gameId, loadGame, navigate, isAuthLoading, ensureAuthenticated]);
 
   useEffect(() => {
     if (gameState && gameState.id !== gameId) {
@@ -128,7 +135,7 @@ const GamePage = () => {
   }, [gameState, gameId, navigate]);
 
   // Show loading if loading or no game state yet
-  if (isLoading || !gameState || !currentPlayer) {
+  if (isLoading || isAuthLoading || !gameState || !currentPlayer) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

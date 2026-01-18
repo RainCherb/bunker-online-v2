@@ -8,8 +8,12 @@ import {
   calculateBunkerSlots 
 } from '@/data/gameData';
 
-const generateGameId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
-const generatePlayerId = () => Math.random().toString(36).substring(2, 12);
+// Use crypto for secure random ID generation
+const generateGameId = () => {
+  const array = new Uint8Array(4);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => b.toString(36)).join('').toUpperCase().slice(0, 6);
+};
 
 // Convert original Bunker to DB format
 const bunkerToDBFormat = (bunker: ReturnType<typeof getRandomBunker>): BunkerDB => ({
@@ -62,15 +66,15 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
 });
 
 export function useGameDatabase() {
-  // Create a new game
-  const createGame = useCallback(async (hostName: string): Promise<{ gameId: string; playerId: string } | null> => {
+  // Create a new game - now requires userId from anonymous auth
+  const createGame = useCallback(async (hostName: string, userId: string): Promise<{ gameId: string; playerId: string } | null> => {
     const gameId = generateGameId();
-    const playerId = generatePlayerId();
+    const playerId = userId; // Use auth.uid() as player ID for RLS
     const bunker = bunkerToDBFormat(getRandomBunker());
     const catastrophe = catastropheToDBFormat(getRandomCatastrophe());
     const characteristics = generateRandomCharacteristics();
 
-    // Insert game
+    // Insert game first
     const { error: gameError } = await supabase
       .from('games')
       .insert({
@@ -98,7 +102,7 @@ export function useGameDatabase() {
       return null;
     }
 
-    // Insert host player
+    // Insert host player with auth.uid() as ID
     const { error: playerError } = await supabase
       .from('players')
       .insert({
@@ -115,43 +119,19 @@ export function useGameDatabase() {
 
     if (playerError) {
       console.error('Error creating player:', playerError);
+      // Try to clean up the game
+      await supabase.from('games').delete().eq('id', gameId);
       return null;
     }
 
     return { gameId, playerId };
   }, []);
 
-  // Join an existing game
-  const joinGame = useCallback(async (gameId: string, playerName: string): Promise<{ playerId: string } | null> => {
-    // Check if game exists and is in lobby phase
-    const { data: game, error: gameError } = await supabase
-      .from('games')
-      .select('*')
-      .eq('id', gameId)
-      .single();
-
-    if (gameError || !game) {
-      console.error('Game not found:', gameError);
-      return null;
-    }
-
-    if (game.phase !== 'lobby') {
-      console.error('Game already started');
-      return null;
-    }
-
-    // Check player count
-    const { count } = await supabase
-      .from('players')
-      .select('*', { count: 'exact', head: true })
-      .eq('game_id', gameId);
-
-    if (count && count >= 15) {
-      console.error('Game is full');
-      return null;
-    }
-
-    const playerId = generatePlayerId();
+  // Join an existing game - now requires userId from anonymous auth
+  const joinGame = useCallback(async (gameId: string, playerName: string, userId: string): Promise<{ playerId: string } | null> => {
+    const playerId = userId; // Use auth.uid() as player ID for RLS
+    
+    // First, create the player so we can access the game via RLS
     const characteristics = generateRandomCharacteristics();
 
     const { error: playerError } = await supabase
@@ -170,6 +150,40 @@ export function useGameDatabase() {
 
     if (playerError) {
       console.error('Error joining game:', playerError);
+      return null;
+    }
+
+    // Now verify the game exists and is in lobby phase
+    const { data: game, error: gameError } = await supabase
+      .from('games')
+      .select('*')
+      .eq('id', gameId)
+      .single();
+
+    if (gameError || !game) {
+      console.error('Game not found:', gameError);
+      // Clean up the player we just created
+      await supabase.from('players').delete().eq('id', playerId);
+      return null;
+    }
+
+    if (game.phase !== 'lobby') {
+      console.error('Game already started');
+      // Clean up the player we just created
+      await supabase.from('players').delete().eq('id', playerId);
+      return null;
+    }
+
+    // Check player count
+    const { count } = await supabase
+      .from('players')
+      .select('*', { count: 'exact', head: true })
+      .eq('game_id', gameId);
+
+    if (count && count > 15) {
+      console.error('Game is full');
+      // Clean up the player we just created
+      await supabase.from('players').delete().eq('id', playerId);
       return null;
     }
 
