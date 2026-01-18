@@ -2,11 +2,13 @@ import React, { createContext, useContext, useState, useCallback, useEffect, use
 import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB, CHARACTERISTICS_ORDER } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { useGameDatabase } from '@/hooks/useGameDatabase';
+import { useAuth } from '@/hooks/useAuth';
 
 interface GameContextType {
   gameState: GameState | null;
   currentPlayer: Player | null;
   isLoading: boolean;
+  isAuthLoading: boolean;
   createGame: (hostName: string) => Promise<string | null>;
   joinGame: (gameId: string, playerName: string) => Promise<boolean>;
   loadGame: (gameId: string, playerId: string) => Promise<boolean>;
@@ -31,8 +33,7 @@ interface GameContextType {
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-// Storage keys
-const PLAYER_ID_KEY = 'bunker_player_id';
+// Storage key for game ID only (player ID comes from auth now)
 const GAME_ID_KEY = 'bunker_game_id';
 
 // Transform database row to Player type
@@ -78,15 +79,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [phaseEndsAt, setPhaseEndsAt] = useState<Date | null>(null);
   const [turnHasRevealed, setTurnHasRevealed] = useState(false);
   const db = useGameDatabase();
+  const { userId, ensureAuthenticated, isLoading: isAuthLoading, signOut } = useAuth();
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const currentPlayer = gameState?.players.find(p => p.id === currentPlayerId) || null;
 
-  // Save player/game IDs to localStorage
-  const saveSession = useCallback((gameId: string, playerId: string) => {
+  // Save game ID to localStorage (player ID comes from auth now)
+  const saveSession = useCallback((gameId: string) => {
     localStorage.setItem(GAME_ID_KEY, gameId);
-    localStorage.setItem(PLAYER_ID_KEY, playerId);
   }, []);
 
   // Fetch game state from database
@@ -203,10 +204,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Create a new game
   const createGame = useCallback(async (hostName: string): Promise<string | null> => {
     setIsLoading(true);
-    const result = await db.createGame(hostName);
+    
+    // Ensure user is authenticated (anonymous auth)
+    const user = await ensureAuthenticated();
+    if (!user) {
+      console.error('[CreateGame] Failed to authenticate');
+      setIsLoading(false);
+      return null;
+    }
+    
+    const result = await db.createGame(hostName, user.id);
     
     if (result) {
-      saveSession(result.gameId, result.playerId);
+      saveSession(result.gameId);
       setCurrentPlayerIdState(result.playerId);
       const fetchResult = await fetchGameState(result.gameId);
       if (fetchResult) {
@@ -219,15 +229,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     setIsLoading(false);
     return result?.gameId || null;
-  }, [db, saveSession, fetchGameState, setupRealtimeSubscription]);
+  }, [db, saveSession, fetchGameState, setupRealtimeSubscription, ensureAuthenticated]);
 
   // Join an existing game
   const joinGame = useCallback(async (gameId: string, playerName: string): Promise<boolean> => {
     setIsLoading(true);
-    const result = await db.joinGame(gameId, playerName);
+    
+    // Ensure user is authenticated (anonymous auth)
+    const user = await ensureAuthenticated();
+    if (!user) {
+      console.error('[JoinGame] Failed to authenticate');
+      setIsLoading(false);
+      return false;
+    }
+    
+    const result = await db.joinGame(gameId, playerName, user.id);
     
     if (result) {
-      saveSession(gameId, result.playerId);
+      saveSession(gameId);
       setCurrentPlayerIdState(result.playerId);
       const fetchResult = await fetchGameState(gameId);
       if (fetchResult) {
@@ -242,9 +261,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     setIsLoading(false);
     return false;
-  }, [db, saveSession, fetchGameState, setupRealtimeSubscription]);
+  }, [db, saveSession, fetchGameState, setupRealtimeSubscription, ensureAuthenticated]);
 
-  // Load existing game from session
+  // Load existing game from session - uses auth.uid() as player ID
   const loadGame = useCallback(async (gameId: string, playerId: string): Promise<boolean> => {
     setIsLoading(true);
     const result = await fetchGameState(gameId);
@@ -252,7 +271,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Check if game exists and is not game over
     if (!result) {
       localStorage.removeItem(GAME_ID_KEY);
-      localStorage.removeItem(PLAYER_ID_KEY);
       setIsLoading(false);
       return false;
     }
@@ -260,7 +278,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // If game is over, clear session
     if (result.state.phase === 'gameover') {
       localStorage.removeItem(GAME_ID_KEY);
-      localStorage.removeItem(PLAYER_ID_KEY);
       setIsLoading(false);
       return false;
     }
@@ -277,7 +294,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     // Player not found in game
     localStorage.removeItem(GAME_ID_KEY);
-    localStorage.removeItem(PLAYER_ID_KEY);
     setIsLoading(false);
     return false;
   }, [fetchGameState, setupRealtimeSubscription]);
@@ -564,18 +580,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [gameState, db]);
 
-  // Set current player ID
+  // Set current player ID (no longer saves to localStorage - uses auth)
   const setCurrentPlayerId = useCallback((playerId: string) => {
     setCurrentPlayerIdState(playerId);
-    if (gameState) {
-      localStorage.setItem(PLAYER_ID_KEY, playerId);
-    }
-  }, [gameState]);
+  }, []);
 
   // Clear game session
-  const clearSession = useCallback(() => {
+  const clearSession = useCallback(async () => {
     localStorage.removeItem(GAME_ID_KEY);
-    localStorage.removeItem(PLAYER_ID_KEY);
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
@@ -588,17 +600,25 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setCurrentPlayerIdState(null);
     setPhaseEndsAt(null);
     setTurnHasRevealed(false);
-  }, []);
+    // Sign out to get a new anonymous user for next game
+    await signOut();
+  }, [signOut]);
 
-  // Check for existing session on mount
+  // Check for existing session on mount - now uses auth.uid()
   useEffect(() => {
-    const savedGameId = localStorage.getItem(GAME_ID_KEY);
-    const savedPlayerId = localStorage.getItem(PLAYER_ID_KEY);
+    const restoreSession = async () => {
+      const savedGameId = localStorage.getItem(GAME_ID_KEY);
+      
+      if (savedGameId && userId) {
+        // Use auth.uid() as player ID
+        loadGame(savedGameId, userId);
+      }
+    };
     
-    if (savedGameId && savedPlayerId) {
-      loadGame(savedGameId, savedPlayerId);
+    if (!isAuthLoading && userId) {
+      restoreSession();
     }
-  }, [loadGame]);
+  }, [loadGame, userId, isAuthLoading]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -619,6 +639,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       gameState,
       currentPlayer,
       isLoading,
+      isAuthLoading,
       createGame,
       joinGame,
       loadGame,
