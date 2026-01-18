@@ -7,6 +7,17 @@ import {
   getRandomCatastrophe, 
   calculateBunkerSlots 
 } from '@/data/gameData';
+import { z } from 'zod';
+
+// Validation schemas for input sanitization
+const playerNameSchema = z.string()
+  .min(1, 'Имя не может быть пустым')
+  .max(50, 'Имя слишком длинное')
+  .regex(/^[\p{L}\p{N}\s\-_.]+$/u, 'Имя содержит недопустимые символы');
+
+const gameCodeSchema = z.string()
+  .length(6, 'Код игры должен быть 6 символов')
+  .regex(/^[A-Z0-9]{6}$/, 'Неверный формат кода игры');
 
 // Use crypto for secure random ID generation
 const generateGameId = () => {
@@ -68,6 +79,16 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
 export function useGameDatabase() {
   // Create a new game - now requires userId from anonymous auth
   const createGame = useCallback(async (hostName: string, userId: string): Promise<{ gameId: string; playerId: string } | null> => {
+    // Validate input
+    const nameResult = playerNameSchema.safeParse(hostName);
+    if (!nameResult.success) {
+      if (import.meta.env.DEV) {
+        console.error('Invalid player name:', nameResult.error.message);
+      }
+      return null;
+    }
+    const validatedName = nameResult.data;
+
     const gameId = generateGameId();
     const playerId = userId; // Use auth.uid() as player ID for RLS
     const bunker = bunkerToDBFormat(getRandomBunker());
@@ -98,7 +119,9 @@ export function useGameDatabase() {
       });
 
     if (gameError) {
-      console.error('Error creating game:', gameError);
+      if (import.meta.env.DEV) {
+        console.error('Error creating game:', gameError);
+      }
       return null;
     }
 
@@ -108,7 +131,7 @@ export function useGameDatabase() {
       .insert({
         id: playerId,
         game_id: gameId,
-        name: hostName,
+        name: validatedName,
         is_host: true,
         is_eliminated: false,
         characteristics: characteristics as any,
@@ -118,7 +141,9 @@ export function useGameDatabase() {
       });
 
     if (playerError) {
-      console.error('Error creating player:', playerError);
+      if (import.meta.env.DEV) {
+        console.error('Error creating player:', playerError);
+      }
       // Try to clean up the game
       await supabase.from('games').delete().eq('id', gameId);
       return null;
@@ -129,6 +154,25 @@ export function useGameDatabase() {
 
   // Join an existing game - now requires userId from anonymous auth
   const joinGame = useCallback(async (gameId: string, playerName: string, userId: string): Promise<{ playerId: string } | null> => {
+    // Validate inputs
+    const nameResult = playerNameSchema.safeParse(playerName);
+    if (!nameResult.success) {
+      if (import.meta.env.DEV) {
+        console.error('Invalid player name:', nameResult.error.message);
+      }
+      return null;
+    }
+    const validatedName = nameResult.data;
+
+    const codeResult = gameCodeSchema.safeParse(gameId);
+    if (!codeResult.success) {
+      if (import.meta.env.DEV) {
+        console.error('Invalid game code:', codeResult.error.message);
+      }
+      return null;
+    }
+    const validatedGameId = codeResult.data;
+
     const playerId = userId; // Use auth.uid() as player ID for RLS
     
     // First, create the player so we can access the game via RLS
@@ -138,8 +182,8 @@ export function useGameDatabase() {
       .from('players')
       .insert({
         id: playerId,
-        game_id: gameId,
-        name: playerName,
+        game_id: validatedGameId,
+        name: validatedName,
         is_host: false,
         is_eliminated: false,
         characteristics: characteristics as any,
@@ -149,7 +193,9 @@ export function useGameDatabase() {
       });
 
     if (playerError) {
-      console.error('Error joining game:', playerError);
+      if (import.meta.env.DEV) {
+        console.error('Error joining game:', playerError);
+      }
       return null;
     }
 
@@ -157,18 +203,22 @@ export function useGameDatabase() {
     const { data: game, error: gameError } = await supabase
       .from('games')
       .select('*')
-      .eq('id', gameId)
+      .eq('id', validatedGameId)
       .single();
 
     if (gameError || !game) {
-      console.error('Game not found:', gameError);
+      if (import.meta.env.DEV) {
+        console.error('Game not found:', gameError);
+      }
       // Clean up the player we just created
       await supabase.from('players').delete().eq('id', playerId);
       return null;
     }
 
     if (game.phase !== 'lobby') {
-      console.error('Game already started');
+      if (import.meta.env.DEV) {
+        console.error('Game already started');
+      }
       // Clean up the player we just created
       await supabase.from('players').delete().eq('id', playerId);
       return null;
@@ -178,10 +228,12 @@ export function useGameDatabase() {
     const { count } = await supabase
       .from('players')
       .select('*', { count: 'exact', head: true })
-      .eq('game_id', gameId);
+      .eq('game_id', validatedGameId);
 
     if (count && count > 15) {
-      console.error('Game is full');
+      if (import.meta.env.DEV) {
+        console.error('Game is full');
+      }
       // Clean up the player we just created
       await supabase.from('players').delete().eq('id', playerId);
       return null;
@@ -241,7 +293,9 @@ export function useGameDatabase() {
       .eq('id', gameId);
 
     if (gameError) {
-      console.error('Error starting game:', gameError);
+      if (import.meta.env.DEV) {
+        console.error('Error starting game:', gameError);
+      }
       return false;
     }
 
@@ -254,7 +308,9 @@ export function useGameDatabase() {
       .eq('game_id', gameId);
 
     if (playersError) {
-      console.error('Error updating players:', playersError);
+      if (import.meta.env.DEV) {
+        console.error('Error updating players:', playersError);
+      }
       return false;
     }
 
