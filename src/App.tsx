@@ -8,6 +8,7 @@ import HomePage from "./pages/HomePage";
 import LobbyPage from "./pages/LobbyPage";
 import GamePage from "./pages/GamePage";
 import RulesPage from "./pages/RulesPage";
+import JoinPage from "./pages/JoinPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,11 +21,12 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/lobby/:gameId" element={<LobbyPage />} />
-          <Route path="/game/:gameId" element={<GamePage />} />
-          <Route path="/rules" element={<RulesPage />} />
-          <Route path="*" element={<NotFound />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/join/:gameId" element={<JoinPage />} />
+            <Route path="/lobby/:gameId" element={<LobbyPage />} />
+            <Route path="/game/:gameId" element={<GamePage />} />
+            <Route path="/rules" element={<RulesPage />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
