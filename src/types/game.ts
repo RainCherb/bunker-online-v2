@@ -35,7 +35,7 @@ export interface Bunker {
 export interface Catastrophe {
   name: string;
   description: string;
-  severity: 'critical' | 'severe' | 'moderate';
+  survivalCondition: string;
 }
 
 // Database compatible versions (for storing in DB)
