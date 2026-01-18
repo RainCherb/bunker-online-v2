@@ -168,7 +168,7 @@ const CardRevealAnimation = ({
           <motion.div
             initial={{ scaleX: 1 }}
             animate={{ scaleX: 0 }}
-            transition={{ duration: 4, ease: "linear" }}
+            transition={{ duration: 10, ease: "linear" }}
             onAnimationComplete={onComplete}
             className="absolute bottom-8 left-1/2 -translate-x-1/2 w-32 h-1 bg-primary/30 rounded-full origin-left"
           >
