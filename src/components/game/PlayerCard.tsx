@@ -1,7 +1,7 @@
+import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER } from '@/types/game';
 import { Eye, EyeOff, Crown, Skull, CheckCircle } from 'lucide-react';
-import { useGame } from '@/contexts/GameContext';
 
 interface PlayerCardProps {
   player: Player;
@@ -9,28 +9,31 @@ interface PlayerCardProps {
   isCurrentPlayer: boolean;
   isCurrentTurn: boolean;
   hasRevealedThisTurn?: boolean;
+  isVoting?: boolean;
+  isTurnPhase?: boolean;
 }
 
-const PlayerCard = ({ player, index, isCurrentPlayer, isCurrentTurn, hasRevealedThisTurn }: PlayerCardProps) => {
-  const { gameState } = useGame();
-  const isVoting = gameState?.phase === 'voting' || gameState?.phase === 'results';
-  const isTurnPhase = gameState?.phase === 'turn';
-
+const PlayerCard = memo(({ 
+  player, 
+  index, 
+  isCurrentPlayer, 
+  isCurrentTurn, 
+  hasRevealedThisTurn,
+  isVoting = false,
+  isTurnPhase = false
+}: PlayerCardProps) => {
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.03 }}
-      whileHover={{ scale: 1.02 }}
+      transition={{ delay: Math.min(index * 0.02, 0.2), duration: 0.2 }}
       className={`player-card relative ${player.isEliminated ? 'eliminated opacity-60' : ''} ${
         isCurrentTurn && !player.isEliminated ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''
-      } hover:border-primary/50 transition-colors`}
+      }`}
     >
       {/* Current turn indicator */}
       {isCurrentTurn && !player.isEliminated && isTurnPhase && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
+        <div
           className={`absolute -top-2 -left-2 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center z-10 ${
             hasRevealedThisTurn ? 'bg-green-500' : 'bg-primary animate-pulse'
           }`}
@@ -40,7 +43,7 @@ const PlayerCard = ({ player, index, isCurrentPlayer, isCurrentTurn, hasRevealed
           ) : (
             <span className="text-xs text-primary-foreground font-bold">!</span>
           )}
-        </motion.div>
+        </div>
       )}
 
       {/* Status Icons */}
@@ -116,19 +119,30 @@ const PlayerCard = ({ player, index, isCurrentPlayer, isCurrentTurn, hasRevealed
 
       {/* Votes indicator */}
       {isVoting && player.votesAgainst > 0 && !player.isEliminated && (
-        <motion.div 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="mt-2 sm:mt-3 text-center"
-        >
+        <div className="mt-2 sm:mt-3 text-center">
           <span className="inline-flex items-center gap-1 px-2 py-0.5 sm:py-1 rounded bg-destructive/20 text-destructive text-xs font-display">
             <Skull className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
             {player.votesAgainst}
           </span>
-        </motion.div>
+        </div>
       )}
     </motion.div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - only re-render when these change
+  return (
+    prevProps.player.id === nextProps.player.id &&
+    prevProps.player.isEliminated === nextProps.player.isEliminated &&
+    prevProps.player.votesAgainst === nextProps.player.votesAgainst &&
+    prevProps.player.revealedCharacteristics.length === nextProps.player.revealedCharacteristics.length &&
+    prevProps.isCurrentPlayer === nextProps.isCurrentPlayer &&
+    prevProps.isCurrentTurn === nextProps.isCurrentTurn &&
+    prevProps.hasRevealedThisTurn === nextProps.hasRevealedThisTurn &&
+    prevProps.isVoting === nextProps.isVoting &&
+    prevProps.isTurnPhase === nextProps.isTurnPhase
+  );
+});
+
+PlayerCard.displayName = 'PlayerCard';
 
 export default PlayerCard;

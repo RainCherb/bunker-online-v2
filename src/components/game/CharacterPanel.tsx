@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
 import { X, Eye, Lock, AlertCircle, CheckCircle } from 'lucide-react';
@@ -9,7 +10,7 @@ interface CharacterPanelProps {
   onClose?: () => void;
 }
 
-const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
+const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) => {
   const { 
     revealCharacteristic, 
     gameState, 
@@ -23,15 +24,20 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
   const isTurnPhase = gameState?.phase === 'turn';
   const currentTurnPlayer = getCurrentTurnPlayer();
   const isMyTurn = isTurnPhase && currentTurnPlayer?.id === currentPlayer?.id;
-  const availableChars = isOwn ? getAvailableCharacteristics(player.id) : [];
   const hasRevealed = isOwn ? hasRevealedThisTurn() : false;
   const currentRound = gameState?.currentRound || 1;
 
-  const handleReveal = async (key: keyof Characteristics) => {
+  // Memoize available characteristics
+  const availableChars = useMemo(() => 
+    isOwn ? getAvailableCharacteristics(player.id) : [],
+    [isOwn, getAvailableCharacteristics, player.id]
+  );
+
+  const handleReveal = useCallback(async (key: keyof Characteristics) => {
     if (canRevealCharacteristic(player.id, key)) {
       await revealCharacteristic(player.id, key);
     }
-  };
+  }, [canRevealCharacteristic, player.id, revealCharacteristic]);
 
   return (
     <div className="p-4 sm:p-6 h-full flex flex-col">
@@ -65,9 +71,7 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
 
       {/* Turn indicator */}
       {isOwn && isTurnPhase && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className={`mb-4 p-2 sm:p-3 rounded-lg flex items-center gap-2 flex-shrink-0 ${
             isMyTurn 
               ? hasRevealed
@@ -90,7 +94,7 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
                       : 'ВАШ ХОД — РАСКРОЙТЕ КАРТУ'))
               : `Ходит: ${currentTurnPlayer?.name || 'Ожидание...'}`}
           </span>
-        </motion.div>
+        </div>
       )}
 
       {/* Round info */}
@@ -102,21 +106,18 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
         </div>
       )}
 
-      {/* Characteristics */}
-      <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1">
-        {CHARACTERISTICS_ORDER.map((key, index) => {
+      {/* Characteristics - optimized with less animation */}
+      <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 will-change-scroll">
+        {CHARACTERISTICS_ORDER.map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
           const value = player.characteristics[key];
           const canReveal = isOwn && canRevealCharacteristic(player.id, key);
           const isAvailable = availableChars.includes(key);
 
           return (
-            <motion.div
+            <div
               key={key}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.03 }}
-              className={`p-3 sm:p-4 rounded-lg border-2 transition-all duration-300 ${
+              className={`p-3 sm:p-4 rounded-lg border-2 transition-colors ${
                 isRevealed
                   ? 'border-primary/50 bg-primary/10'
                   : isAvailable && isMyTurn && !hasRevealed
@@ -167,7 +168,7 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
                   </button>
                 )}
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -188,6 +189,8 @@ const CharacterPanel = ({ player, isOwn, onClose }: CharacterPanelProps) => {
       </div>
     </div>
   );
-};
+});
+
+CharacterPanel.displayName = 'CharacterPanel';
 
 export default CharacterPanel;
