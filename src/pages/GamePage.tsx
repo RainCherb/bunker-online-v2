@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import { Shield, Clock, Users, ChevronRight, LogOut } from 'lucide-react';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import PlayerCard from '@/components/game/PlayerCard';
 import CharacterPanel from '@/components/game/CharacterPanel';
 import GameInfo from '@/components/game/GameInfo';
@@ -10,9 +10,16 @@ import VotingPanel from '@/components/game/VotingPanel';
 import GameOverScreen from '@/components/game/GameOverScreen';
 import GameTimer from '@/components/game/GameTimer';
 import PlayerDetailModal from '@/components/game/PlayerDetailModal';
+import CardRevealAnimation from '@/components/game/CardRevealAnimation';
 import { useServerTimer } from '@/hooks/useServerTimer';
-import { Player } from '@/types/game';
+import { Player, Characteristics } from '@/types/game';
 import { useAuth } from '@/hooks/useAuth';
+
+interface RevealInfo {
+  playerName: string;
+  characteristicKey: keyof Characteristics;
+  characteristicValue: string;
+}
 
 const GamePage = () => {
   const { gameId } = useParams();
@@ -36,12 +43,46 @@ const GamePage = () => {
   } = useGame();
   const [showCharacterPanel, setShowCharacterPanel] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [revealAnimation, setRevealAnimation] = useState<RevealInfo | null>(null);
+  const prevPlayersRef = useRef<Player[]>([]);
 
   const currentTurnPlayer = getCurrentTurnPlayer();
   const isMyTurn = currentTurnPlayer?.id === currentPlayer?.id;
   const isTurnPhase = gameState?.phase === 'turn';
   const isDiscussionPhase = gameState?.phase === 'discussion';
   const playerRevealed = turnHasRevealed;
+
+  // Detect new card reveals
+  useEffect(() => {
+    if (!gameState?.players) return;
+
+    const prevPlayers = prevPlayersRef.current;
+    
+    // Compare revealed characteristics
+    for (const player of gameState.players) {
+      const prevPlayer = prevPlayers.find(p => p.id === player.id);
+      if (prevPlayer) {
+        // Check if any new characteristic was revealed
+        for (const charKey of player.revealedCharacteristics) {
+          if (!prevPlayer.revealedCharacteristics.includes(charKey)) {
+            // New reveal detected!
+            const typedKey = charKey as keyof Characteristics;
+            setRevealAnimation({
+              playerName: player.name,
+              characteristicKey: typedKey,
+              characteristicValue: player.characteristics[typedKey] || ''
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    prevPlayersRef.current = gameState.players.map(p => ({
+      ...p,
+      revealedCharacteristics: [...p.revealedCharacteristics]
+    }));
+  }, [gameState?.players]);
 
   // Handle turn timeout - only host executes this
   const handleTurnTimeout = useCallback(async () => {
@@ -324,7 +365,7 @@ const GamePage = () => {
               )}
 
               {/* Players Grid - Mobile optimized with equal columns */}
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 lg:gap-4">
+              <div className="players-grid-mobile">
                 {gameState.players.map((player, index) => (
                   <div 
                     key={player.id}
@@ -380,6 +421,15 @@ const GamePage = () => {
               onClose={() => setSelectedPlayer(null)} 
             />
           )}
+
+          {/* Card Reveal Animation */}
+          <CardRevealAnimation
+            playerName={revealAnimation?.playerName || ''}
+            characteristicKey={revealAnimation?.characteristicKey || 'profession'}
+            characteristicValue={revealAnimation?.characteristicValue || ''}
+            isVisible={!!revealAnimation}
+            onComplete={() => setRevealAnimation(null)}
+          />
         </main>
 
         {/* Mobile Game Info Button */}
