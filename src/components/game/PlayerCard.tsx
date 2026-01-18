@@ -71,7 +71,7 @@ const PlayerCard = memo(({
         }`}>
           {player.isEliminated ? <Skull className="w-4 h-4 sm:w-5 sm:h-5" /> : index + 1}
         </div>
-        <h3 className="font-display text-xs sm:text-sm truncate px-1">{player.name}</h3>
+        <h3 className="font-display text-xs sm:text-sm truncate max-w-full overflow-hidden text-ellipsis">{player.name}</h3>
         {isCurrentPlayer && !player.isEliminated && (
           <span className="text-xs text-primary font-display">ВЫ</span>
         )}

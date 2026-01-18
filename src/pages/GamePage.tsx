@@ -94,9 +94,14 @@ const GamePage = () => {
     // If current turn player hasn't revealed, auto-reveal for them first
     if (!turnHasRevealed) {
       console.log('[Timeout] Auto-revealing for player:', currentTurnPlayer.name);
-      await autoRevealRandomCharacteristic(currentTurnPlayer.id);
-      // After auto-reveal, the timer will be reset to 5 minutes
-      // The next timeout will then call nextPlayerTurn
+      try {
+        await autoRevealRandomCharacteristic(currentTurnPlayer.id);
+        console.log('[Timeout] Auto-reveal completed, 5 min timer started');
+        // After auto-reveal, the timer will be reset to 5 minutes
+        // The next timeout will then call nextPlayerTurn
+      } catch (error) {
+        console.error('[Timeout] Auto-reveal failed:', error);
+      }
     } else {
       // Player already revealed, time for discussion is up - move to next player
       console.log('[Timeout] Player already revealed, moving to next player');
