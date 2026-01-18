@@ -7,12 +7,11 @@ import bunkerHero from '@/assets/bunker-hero.jpg';
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { createGame, joinGame, isLoading, gameState, currentPlayer } = useGame();
+  const { createGame, joinGame, isLoading, gameState, currentPlayer, clearSession } = useGame();
   const [playerName, setPlayerName] = useState('');
   const [gameCode, setGameCode] = useState('');
   const [mode, setMode] = useState<'none' | 'create' | 'join'>('none');
   const [error, setError] = useState('');
-  const { clearSession } = useGame();
 
   // Redirect to active game if session is restored, but check if game is still valid
   useEffect(() => {
