@@ -34,7 +34,7 @@ const GameInfo = memo(() => {
         </p>
         <div className="flex items-center gap-2 mt-2 sm:mt-3 text-xs sm:text-sm">
           <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
-          <span>Время выживания: {catastrophe.survivalTime}</span>
+          <span>Дополнительное условие для выживания: {catastrophe.survivalTime}</span>
         </div>
       </div>
 
