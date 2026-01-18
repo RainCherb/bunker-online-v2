@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
-import { Shield, Users, Copy, Check, AlertTriangle, Play, Loader2, LogOut } from 'lucide-react';
+import { Shield, Users, Copy, Check, AlertTriangle, Play, Loader2, LogOut, Link2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -48,6 +48,15 @@ const LobbyPage = () => {
   const copyCode = () => {
     if (gameId) {
       navigator.clipboard.writeText(gameId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const copyInviteLink = () => {
+    if (gameId) {
+      const inviteUrl = `${window.location.origin}/join/${gameId}`;
+      navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -112,13 +121,14 @@ const LobbyPage = () => {
             className="bunker-card text-center mb-4 sm:mb-8 p-4 sm:p-6"
           >
             <h2 className="font-display text-sm sm:text-lg text-muted-foreground mb-2">КОД ИГРЫ</h2>
-            <div className="flex items-center justify-center gap-2 sm:gap-4">
+            <div className="flex items-center justify-center gap-2 sm:gap-4 mb-4">
               <span className="font-display text-2xl xs:text-3xl sm:text-5xl tracking-[0.15em] sm:tracking-[0.3em] text-primary text-glow break-all">
                 {gameId}
               </span>
               <button
                 onClick={copyCode}
                 className="p-2 sm:p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors flex-shrink-0"
+                title="Копировать код"
               >
                 {copied ? (
                   <Check className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
@@ -127,8 +137,18 @@ const LobbyPage = () => {
                 )}
               </button>
             </div>
+            
+            {/* Invite Link Button */}
+            <button
+              onClick={copyInviteLink}
+              className="bunker-button-secondary inline-flex items-center gap-2 text-sm sm:text-base"
+            >
+              <Link2 className="w-4 h-4 sm:w-5 sm:h-5" />
+              {copied ? 'Ссылка скопирована!' : 'Скопировать ссылку-приглашение'}
+            </button>
+            
             <p className="mt-3 sm:mt-4 text-xs sm:text-base text-muted-foreground">
-              Поделитесь этим кодом с друзьями для присоединения к игре
+              Поделитесь ссылкой или кодом с друзьями для присоединения к игре
             </p>
           </motion.div>
 
