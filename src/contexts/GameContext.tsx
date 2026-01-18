@@ -179,14 +179,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     channelRef.current = channel;
 
-    // Polling fallback - check every 5 seconds if no realtime update received (optimized for mobile)
+    // Polling fallback - check every 500ms for faster response
     pollingIntervalRef.current = setInterval(async () => {
       const timeSinceLastUpdate = Date.now() - lastUpdateTime;
-      // If no update in 6 seconds, poll manually
-      if (timeSinceLastUpdate > 6000) {
+      // If no update in 600ms, poll manually
+      if (timeSinceLastUpdate > 600) {
         await refreshState();
       }
-    }, 5000);
+    }, 500);
 
     return () => {
       if (channelRef.current) {

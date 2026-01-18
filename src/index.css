@@ -248,7 +248,10 @@
 
   .player-card {
     @apply relative overflow-hidden rounded-lg border-2 border-primary/30 bg-card p-3 sm:p-4;
-    @apply transition-colors duration-200;
+    @apply transition-all duration-200 ease-out;
+    /* Force equal sizing on mobile grid */
+    min-width: 0;
+    width: 100%;
   }
 
   .player-card:hover {

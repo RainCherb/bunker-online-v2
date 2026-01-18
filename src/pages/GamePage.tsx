@@ -212,8 +212,9 @@ const GamePage = () => {
               {/* Phase Indicator with Timer */}
               <motion.div
                 key={gameState.phase + gameState.currentPlayerIndex}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
                 className="mb-4 sm:mb-6 text-center"
               >
                 <h2 className="font-display text-lg sm:text-2xl text-primary text-glow">
@@ -238,18 +239,20 @@ const GamePage = () => {
                         {isMyTurn && playerRevealed ? (
                           // Show "Next Player" button after revealing
                           <motion.button
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.15, ease: "easeOut" }}
                             onClick={handleNextPlayer}
-                            className="mt-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-display text-sm sm:text-base flex items-center gap-2 hover:bg-primary/90 transition-colors"
+                            className="mt-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-display text-sm sm:text-base flex items-center gap-2 hover:bg-primary/90 active:scale-95 transition-all duration-150"
                           >
                             <span>СЛЕДУЮЩИЙ ИГРОК</span>
                             <ChevronRight className="w-5 h-5" />
                           </motion.button>
                         ) : (
                           <motion.div
-                            initial={{ scale: 0.9 }}
-                            animate={{ scale: 1 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.15, ease: "easeOut" }}
                             className={`mt-2 px-4 sm:px-6 py-2 sm:py-3 rounded-lg text-sm sm:text-base ${
                               isMyTurn 
                                 ? 'bg-primary/20 border-2 border-primary text-primary' 
@@ -320,8 +323,8 @@ const GamePage = () => {
                 </motion.div>
               )}
 
-              {/* Players Grid - Mobile optimized */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-4">
+              {/* Players Grid - Mobile optimized with equal columns */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 lg:gap-4">
                 {gameState.players.map((player, index) => (
                   <div 
                     key={player.id}
