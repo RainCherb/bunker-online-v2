@@ -10,17 +10,14 @@ export interface Player {
 }
 
 export interface Characteristics {
-  gender: string;
-  body: string;
-  trait: string;
   profession: string;
+  biology: string;
   health: string;
   hobby: string;
-  phobia: string;
-  bigInventory: string;
-  backpack: string;
-  additionalInfo: string;
-  specialAbility: string;
+  baggage: string;
+  fact: string;
+  actionCard1: string;
+  actionCard2: string;
 }
 
 export interface Bunker {
@@ -85,29 +82,23 @@ export type VotingPhase =
   | 'revote';
 
 export const CHARACTERISTIC_NAMES: Record<keyof Characteristics, string> = {
-  gender: 'Пол',
-  body: 'Телосложение',
-  trait: 'Черта характера',
   profession: 'Профессия',
+  biology: 'Биология',
   health: 'Здоровье',
   hobby: 'Хобби',
-  phobia: 'Фобия',
-  bigInventory: 'Крупный инвентарь',
-  backpack: 'Рюкзак',
-  additionalInfo: 'Доп. сведение',
-  specialAbility: 'Спец. способность',
+  baggage: 'Багаж',
+  fact: 'Факт',
+  actionCard1: 'Карта действий 1',
+  actionCard2: 'Карта действий 2',
 };
 
 export const CHARACTERISTICS_ORDER: (keyof Characteristics)[] = [
   'profession',
-  'gender',
-  'body',
-  'trait',
+  'biology',
   'health',
   'hobby',
-  'phobia',
-  'bigInventory',
-  'backpack',
-  'additionalInfo',
-  'specialAbility',
+  'baggage',
+  'fact',
+  'actionCard1',
+  'actionCard2',
 ];
