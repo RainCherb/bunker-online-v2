@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { GameState, Player, Characteristics, BunkerDB, CatastropheDB } from '@/types/game';
 import { 
-  generateRandomCharacteristics, 
+  generateRandomCharacteristics,
+  generateUniqueCharacteristicsForPlayers,
   getRandomBunker, 
   getRandomCatastrophe, 
   calculateBunkerSlots 
@@ -267,12 +268,13 @@ export function useGameDatabase() {
     return dbGameToGameState(game, players || []);
   }, []);
 
-  // Start game
+  // Start game - now generates unique characteristics for all players
   const startGame = useCallback(async (gameId: string): Promise<boolean> => {
     const { data: players } = await supabase
       .from('players')
       .select('id')
-      .eq('game_id', gameId);
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: true });
 
     if (!players || players.length < 6) {
       return false;
@@ -280,7 +282,28 @@ export function useGameDatabase() {
 
     const bunkerSlots = calculateBunkerSlots(players.length);
 
-    // Update game phase - professions stay hidden, players reveal them on their turn
+    // Generate unique characteristics for all players
+    const allCharacteristics = generateUniqueCharacteristicsForPlayers(players.length);
+
+    // Update each player with their unique characteristics
+    for (let i = 0; i < players.length; i++) {
+      const { error: playerUpdateError } = await supabase
+        .from('players')
+        .update({
+          characteristics: allCharacteristics[i] as any,
+          revealed_characteristics: [],
+        })
+        .eq('id', players[i].id);
+
+      if (playerUpdateError) {
+        if (import.meta.env.DEV) {
+          console.error('Error updating player characteristics:', playerUpdateError);
+        }
+        return false;
+      }
+    }
+
+    // Update game phase
     const { error: gameError } = await supabase
       .from('games')
       .update({
@@ -295,21 +318,6 @@ export function useGameDatabase() {
     if (gameError) {
       if (import.meta.env.DEV) {
         console.error('Error starting game:', gameError);
-      }
-      return false;
-    }
-
-    // Reset all revealed characteristics to empty - all cards start hidden
-    const { error: playersError } = await supabase
-      .from('players')
-      .update({
-        revealed_characteristics: [],
-      })
-      .eq('game_id', gameId);
-
-    if (playersError) {
-      if (import.meta.env.DEV) {
-        console.error('Error updating players:', playersError);
       }
       return false;
     }
