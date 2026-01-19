@@ -24,7 +24,7 @@ const RulesPage = () => {
           </Link>
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 text-primary" />
-            <span className="font-display text-xl tracking-wider text-primary">БУНКЕР 3.1</span>
+            <span className="font-display text-xl tracking-wider text-primary">БУНКЕР 3.2</span>
           </div>
         </motion.header>
 

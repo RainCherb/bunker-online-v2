@@ -86,7 +86,7 @@ const HomePage = () => {
             className="flex items-center gap-3"
           >
             <Shield className="w-8 h-8 text-primary" />
-            <span className="font-display text-xl tracking-wider text-primary">БУНКЕР 3.1</span>
+            <span className="font-display text-xl tracking-wider text-primary">БУНКЕР 3.2</span>
           </motion.div>
         </header>
 
@@ -103,7 +103,7 @@ const HomePage = () => {
                 БУНКЕР
               </h1>
               <p className="font-display text-2xl md:text-3xl text-secondary text-glow-warning">
-                ВЕРСИЯ 3.1
+                ВЕРСИЯ 3.2
               </p>
               <p className="mt-6 text-lg text-muted-foreground max-w-md mx-auto">
                 Социальная игра на выживание. Убедите других, что именно вы достойны места в бункере.
@@ -241,7 +241,7 @@ const HomePage = () => {
 
         {/* Footer */}
         <footer className="p-6 text-center text-sm text-muted-foreground">
-          <p>Бункер 3.1 — Социальная игра на выживание</p>
+          <p>Бункер 3.2 — Социальная игра на выживание</p>
         </footer>
       </div>
     </div>

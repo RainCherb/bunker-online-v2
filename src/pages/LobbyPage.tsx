@@ -102,7 +102,7 @@ const LobbyPage = () => {
         >
           <div className="flex items-center gap-2 sm:gap-3">
             <Shield className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            <span className="font-display text-base sm:text-xl tracking-wider text-primary">БУНКЕР 3.1</span>
+            <span className="font-display text-base sm:text-xl tracking-wider text-primary">БУНКЕР 3.2</span>
           </div>
           <button
             onClick={handleLeaveGame}
