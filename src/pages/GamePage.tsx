@@ -375,7 +375,7 @@ const GamePage = () => {
                   <div 
                     key={player.id}
                     onClick={() => setSelectedPlayer(player)}
-                    className="cursor-pointer"
+                    className="cursor-pointer h-full"
                   >
                     <PlayerCard
                       player={player}
@@ -383,6 +383,7 @@ const GamePage = () => {
                       isCurrentPlayer={player.id === currentPlayer.id}
                       isCurrentTurn={currentTurnPlayer?.id === player.id && isTurnPhase}
                       hasRevealedThisTurn={playerRevealed && currentTurnPlayer?.id === player.id}
+                      isTurnPhase={isTurnPhase}
                     />
                   </div>
                 ))}
