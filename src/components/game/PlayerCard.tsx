@@ -27,7 +27,7 @@ const PlayerCard = memo(({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.15, ease: "easeOut" }}
-      className={`player-card relative ${player.isEliminated ? 'eliminated opacity-60' : ''} ${
+      className={`player-card relative h-full flex flex-col ${player.isEliminated ? 'eliminated opacity-60' : ''} ${
         isCurrentTurn && !player.isEliminated ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''
       }`}
     >
@@ -83,7 +83,7 @@ const PlayerCard = memo(({
       </div>
 
       {/* Characteristics - show revealed values */}
-      <div className="space-y-1">
+      <div className="space-y-1 flex-1">
         {CHARACTERISTICS_ORDER.slice(0, 6).map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
           const value = player.characteristics[key];
