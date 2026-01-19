@@ -280,38 +280,32 @@ export const BUNKERS: Bunker[] = [
   },
 ];
 
-export const BIOLOGY: string[] = [
-  'Мужчина, 25 лет, атлетическое телосложение',
-  'Женщина, 30 лет, среднее телосложение',
-  'Мужчина, 45 лет, полное телосложение',
-  'Женщина, 22 года, худощавое телосложение',
-  'Мужчина, 35 лет, мускулистое телосложение',
-  'Женщина, 40 лет, крепкое телосложение',
-  'Мужчина, 55 лет, массивное телосложение',
-  'Женщина, 28 лет, гибкое телосложение',
-  'Небинарная персона, 32 года, среднее телосложение',
-  'Мужчина, 19 лет, худощавое телосложение',
-  'Женщина, 50 лет, полное телосложение',
-  'Мужчина, 60 лет, астеническое телосложение',
-  'Женщина, 35 лет, атлетическое телосложение',
-  'Мужчина, 42 года, крепкое телосложение',
-  'Женщина, 18 лет, хрупкое телосложение',
-  'Мужчина, 28 лет, среднее телосложение',
-  'Женщина, 45 лет, мускулистое телосложение',
-  'Мужчина, 33 лет, гибкое телосложение',
-  'Женщина, 27 лет, атлетическое телосложение',
-  'Мужчина, 50 лет, полное телосложение',
-  'Женщина, 38 лет, худощавое телосложение',
-  'Мужчина, 22 года, мускулистое телосложение',
-  'Женщина, 55 лет, крепкое телосложение',
-  'Мужчина, 40 лет, среднее телосложение',
-  'Женщина, 32 года, гибкое телосложение',
-  'Мужчина, 65 лет, худощавое телосложение',
-  'Женщина, 24 года, хрупкое телосложение',
-  'Мужчина, 38 лет, атлетическое телосложение',
-  'Женщина, 42 года, среднее телосложение',
-  'Небинарная персона, 25 лет, худощавое телосложение',
+// Biology templates with random age generation (16-101)
+export const BIOLOGY_TEMPLATES: string[] = [
+  'Мужчина, {age} лет',
+  'Мужчина, {age} лет, Гомосексуал',
+  'Мужчина, {age} лет, Бисексуал (может дать потомство)',
+  'Мужчина, {age} лет, Асексуал (физически здоров, но отказывается от секса)',
+  'Мужчина, {age} лет, Чайлдфри',
+  'Мужчина, {age} лет, Девственник (Гетеро)',
+  'Мужчина, {age} лет, (Транс)',
+  'Женщина, {age} лет',
+  'Женщина, {age} лет, Лесбиянка',
+  'Женщина, {age} лет, Бисексуальна (может дать потомство)',
+  'Женщина, {age} лет, Асексуальна (физически здорова, но отказывается от секса)',
+  'Женщина, {age} лет, Девственница (Гетеро)',
+  'Женщина, {age} лет, (Транс)',
 ];
+
+// Function to generate biology with random age
+export function generateBiology(): string {
+  const template = BIOLOGY_TEMPLATES[Math.floor(Math.random() * BIOLOGY_TEMPLATES.length)];
+  const age = Math.floor(Math.random() * (101 - 16 + 1)) + 16; // 16-101
+  return template.replace('{age}', age.toString());
+}
+
+// Legacy export for compatibility
+export const BIOLOGY: string[] = BIOLOGY_TEMPLATES;
 
 export const PROFESSIONS: string[] = [
   'Врач-хирург',
@@ -602,6 +596,60 @@ export const ACTION_CARDS: string[] = [
 ];
 
 
+// Generate unique characteristics for all players in a game session
+// This ensures no duplicate cards across players
+export function generateUniqueCharacteristicsForPlayers(playerCount: number): Characteristics[] {
+  const usedCards: Record<string, Set<string>> = {
+    profession: new Set(),
+    hobby: new Set(),
+    baggage: new Set(),
+    fact: new Set(),
+    actionCards: new Set(),
+  };
+  
+  const getUniqueFromArray = <T extends string>(arr: T[], usedSet: Set<string>): T => {
+    const available = arr.filter(item => !usedSet.has(item));
+    if (available.length === 0) {
+      // Fallback: if all cards are used, pick random
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    const selected = available[Math.floor(Math.random() * available.length)];
+    usedSet.add(selected);
+    return selected;
+  };
+  
+  const getUniqueActionCard = (usedSet: Set<string>): string => {
+    const available = ACTION_CARDS.filter(card => !usedSet.has(card));
+    if (available.length === 0) {
+      return ACTION_CARDS[Math.floor(Math.random() * ACTION_CARDS.length)];
+    }
+    const selected = available[Math.floor(Math.random() * available.length)];
+    usedSet.add(selected);
+    return selected;
+  };
+  
+  const characteristics: Characteristics[] = [];
+  
+  for (let i = 0; i < playerCount; i++) {
+    const actionCard1 = getUniqueActionCard(usedCards.actionCards);
+    const actionCard2 = getUniqueActionCard(usedCards.actionCards);
+    
+    characteristics.push({
+      profession: getUniqueFromArray(PROFESSIONS, usedCards.profession),
+      biology: generateBiology(), // Biology always generates unique with random age
+      health: generateHealthCondition(), // Health always generates unique with random severity
+      hobby: getUniqueFromArray(HOBBIES, usedCards.hobby),
+      baggage: getUniqueFromArray(BAGGAGE, usedCards.baggage),
+      fact: getUniqueFromArray(FACTS, usedCards.fact),
+      actionCard1,
+      actionCard2,
+    });
+  }
+  
+  return characteristics;
+}
+
+// Legacy function for single player (kept for compatibility but uses new biology/health generation)
 export function generateRandomCharacteristics(): Characteristics {
   const getRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const getUniqueRandom = <T>(arr: T[], exclude: T): T => {
@@ -617,7 +665,7 @@ export function generateRandomCharacteristics(): Characteristics {
   
   return {
     profession: getRandom(PROFESSIONS),
-    biology: getRandom(BIOLOGY),
+    biology: generateBiology(),
     health: generateHealthCondition(),
     hobby: getRandom(HOBBIES),
     baggage: getRandom(BAGGAGE),
