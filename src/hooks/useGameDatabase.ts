@@ -327,18 +327,21 @@ export function useGameDatabase() {
     return true;
   }, []);
 
-  // Reveal characteristic
-  const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics, currentRevealed: string[]): Promise<boolean> => {
-    const newRevealed = [...new Set([...currentRevealed, characteristic])];
+  // Reveal characteristic using atomic server-side function
+  const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics, _currentRevealed: string[]): Promise<boolean> => {
+    const { error } = await supabase.rpc('reveal_characteristic_atomic', {
+      p_player_id: playerId,
+      p_characteristic: characteristic
+    });
 
-    const { error } = await supabase
-      .from('players')
-      .update({
-        revealed_characteristics: newRevealed,
-      })
-      .eq('id', playerId);
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error('Error revealing characteristic:', error);
+      }
+      return false;
+    }
 
-    return !error;
+    return true;
   }, []);
 
   // Update game phase
@@ -360,70 +363,54 @@ export function useGameDatabase() {
     return !error;
   }, []);
 
-  // Cast vote
-  const castVote = useCallback(async (gameId: string, voterId: string, targetId: string, currentVotes: Record<string, string>): Promise<boolean> => {
-    const newVotes = { ...currentVotes, [voterId]: targetId };
+  // Cast vote using atomic server-side function
+  const castVote = useCallback(async (gameId: string, voterId: string, targetId: string, _currentVotes: Record<string, string>): Promise<boolean> => {
+    const { error } = await supabase.rpc('cast_vote_atomic', {
+      p_game_id: gameId,
+      p_voter_id: voterId,
+      p_target_id: targetId
+    });
 
-    // Update game votes
-    const { error: voteError } = await supabase
-      .from('games')
-      .update({ votes: newVotes })
-      .eq('id', gameId);
-
-    if (voteError) return false;
-
-    // Mark voter as voted
-    const { error: voterError } = await supabase
-      .from('players')
-      .update({ has_voted: true })
-      .eq('id', voterId);
-
-    if (voterError) return false;
-
-    // Update vote counts for all players
-    const { data: players } = await supabase
-      .from('players')
-      .select('id')
-      .eq('game_id', gameId);
-
-    if (players) {
-      for (const player of players) {
-        const votesAgainst = Object.values(newVotes).filter(v => v === player.id).length;
-        await supabase
-          .from('players')
-          .update({ votes_against: votesAgainst })
-          .eq('id', player.id);
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error('Error casting vote:', error);
       }
+      return false;
     }
 
     return true;
   }, []);
 
-  // Eliminate player
+  // Eliminate player using atomic server-side function (host only)
   const eliminatePlayer = useCallback(async (playerId: string): Promise<boolean> => {
-    const { error } = await supabase
-      .from('players')
-      .update({ is_eliminated: true })
-      .eq('id', playerId);
+    const { error } = await supabase.rpc('eliminate_player_atomic', {
+      p_player_id: playerId
+    });
 
-    return !error;
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error('Error eliminating player:', error);
+      }
+      return false;
+    }
+
+    return true;
   }, []);
 
-  // Reset votes for new round
+  // Reset votes using atomic server-side function (host only)
   const resetVotes = useCallback(async (gameId: string): Promise<boolean> => {
-    const { error: gameError } = await supabase
-      .from('games')
-      .update({ votes: {} })
-      .eq('id', gameId);
+    const { error } = await supabase.rpc('reset_votes_atomic', {
+      p_game_id: gameId
+    });
 
-    if (gameError) return false;
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.error('Error resetting votes:', error);
+      }
+      return false;
+    }
 
-    const { error: playersError } = await supabase
-      .from('players')
-      .update({ votes_against: 0, has_voted: false })
-      .eq('game_id', gameId);
-
-    return !playersError;
+    return true;
   }, []);
 
   return {

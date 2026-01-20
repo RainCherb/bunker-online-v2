@@ -373,11 +373,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     if (success) {
       // Mark that this turn has revealed and set new timer (5 minutes after reveal)
-      const newEndsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      const newEndsAt = new Date(Date.now() + 5 * 60 * 1000);
       console.log('[Reveal] Card revealed, setting 5 min timer');
-      await db.updateGamePhase(gameState.id, { 
-        turn_has_revealed: true,
-        phase_ends_at: newEndsAt
+      
+      // Use atomic function to update turn state
+      await supabase.rpc('mark_turn_revealed', {
+        p_game_id: gameState.id,
+        p_phase_ends_at: newEndsAt.toISOString()
       });
     }
     
@@ -404,11 +406,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Directly update DB to avoid canReveal checks since this is auto-reveal
     await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
     
-    // Set 5 minute timer after auto-reveal
-    const newEndsAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-    await db.updateGamePhase(gameState.id, { 
-      turn_has_revealed: true,
-      phase_ends_at: newEndsAt
+    // Set 5 minute timer after auto-reveal using atomic function
+    const newEndsAt = new Date(Date.now() + 5 * 60 * 1000);
+    await supabase.rpc('mark_turn_revealed', {
+      p_game_id: gameState.id,
+      p_phase_ends_at: newEndsAt.toISOString()
     });
   }, [gameState, getAvailableCharacteristics, db]);
 
