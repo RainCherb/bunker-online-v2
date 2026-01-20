@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
-import { Skull, CheckCircle, AlertTriangle, Vote, Trophy } from 'lucide-react';
+import { Skull, CheckCircle, AlertTriangle, Vote, Trophy, Clock, Users } from 'lucide-react';
 
 const VotingPanel = memo(() => {
   const { gameState, currentPlayer, castVote, processVotingResults, nextPhase } = useGame();
@@ -22,6 +22,15 @@ const VotingPanel = memo(() => {
       isResultsPhase: gameState.phase === 'results',
     };
   }, [gameState, currentPlayer]);
+
+  // Get players available for voting (all or tied only in revote)
+  const votablePlayersIds = useMemo(() => {
+    if (!gameState) return new Set<string>();
+    if (gameState.isRevote && gameState.tiedPlayers.length > 0) {
+      return new Set(gameState.tiedPlayers);
+    }
+    return new Set(alivePlayers.map(p => p.id));
+  }, [gameState, alivePlayers]);
 
   const handleVote = useCallback(() => {
     if (selectedTarget && !hasVoted && currentPlayer) {
@@ -44,6 +53,25 @@ const VotingPanel = memo(() => {
     };
   }, [alivePlayers]);
 
+  // Get who voted for whom (for open voting display)
+  const votesMap = useMemo(() => {
+    if (!gameState) return new Map<string, string[]>();
+    const map = new Map<string, string[]>();
+    
+    Object.entries(gameState.votes).forEach(([voterId, targetId]) => {
+      const existing = map.get(targetId) || [];
+      existing.push(voterId);
+      map.set(targetId, existing);
+    });
+    
+    return map;
+  }, [gameState?.votes]);
+
+  // Get player name by ID
+  const getPlayerName = useCallback((playerId: string) => {
+    return gameState?.players.find(p => p.id === playerId)?.name || 'Неизвестный';
+  }, [gameState?.players]);
+
   if (!gameState || !currentPlayer) return null;
 
   // Defense phase - just show info
@@ -52,66 +80,146 @@ const VotingPanel = memo(() => {
       <div className="bunker-card mb-4 sm:mb-6">
         <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
           <Vote className="w-5 h-5 sm:w-6 sm:h-6 text-secondary" />
-          <h3 className="font-display text-base sm:text-lg text-secondary">ЗАЩИТНАЯ РЕЧЬ</h3>
+          <h3 className="font-display text-base sm:text-lg text-secondary">
+            {gameState.isRevote ? 'ДОПОЛНИТЕЛЬНОЕ ОБСУЖДЕНИЕ' : 'ЗАЩИТНАЯ РЕЧЬ'}
+          </h3>
         </div>
-        <p className="text-muted-foreground text-sm sm:text-base">
-          Каждый игрок может высказаться в свою защиту или обвинить других. 
-          После этого начнётся голосование.
-        </p>
+        
+        {gameState.isRevote && gameState.tiedPlayers.length > 0 ? (
+          <>
+            <div className="flex items-center gap-2 mb-3 text-warning">
+              <Clock className="w-4 h-4" />
+              <span className="text-sm font-medium">НИЧЬЯ! 3 минуты на обсуждение</span>
+            </div>
+            <p className="text-muted-foreground text-sm sm:text-base mb-3">
+              Игроки набрали одинаковое количество голосов. Голосование продолжится только среди:
+            </p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {gameState.tiedPlayers.map(playerId => (
+                <span 
+                  key={playerId}
+                  className="px-3 py-1 bg-destructive/20 text-destructive rounded-full text-sm font-medium"
+                >
+                  {getPlayerName(playerId)}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-sm sm:text-base">
+            Каждый игрок может высказаться в свою защиту или обвинить других. 
+            После этого начнётся голосование.
+          </p>
+        )}
+        
         {currentPlayer.isHost && (
           <button onClick={nextPhase} className="bunker-button w-full mt-4">
-            Начать голосование
+            {gameState.isRevote ? 'Начать переголосование' : 'Начать голосование'}
           </button>
         )}
       </div>
     );
   }
 
-  // Results phase - show voting results
+  // Results phase - show voting results with who voted for whom
   if (isResultsPhase) {
     const eliminatedPlayer = sortedPlayers[0];
+    
+    // Check if there's a tie
+    const maxVotes = eliminatedPlayer?.votesAgainst || 0;
+    const tiedPlayers = sortedPlayers.filter(p => p.votesAgainst === maxVotes);
+    const isTie = tiedPlayers.length > 1 && maxVotes > 0;
     
     return (
       <div className="bunker-card mb-4 sm:mb-6">
         <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
           <Trophy className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
-          <h3 className="font-display text-base sm:text-lg text-destructive">РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ</h3>
+          <h3 className="font-display text-base sm:text-lg text-destructive">
+            РЕЗУЛЬТАТЫ ГОЛОСОВАНИЯ
+          </h3>
         </div>
         
         <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-          {sortedPlayers.map((player, index) => (
-            <div
-              key={player.id}
-              className={`p-3 sm:p-4 rounded-lg flex justify-between items-center ${
-                index === 0 && player.votesAgainst > 0
-                  ? 'bg-destructive/20 border-2 border-destructive'
-                  : 'bg-muted/30 border border-border'
-              }`}
-            >
-              <div className="flex items-center gap-2 sm:gap-3">
-                <span className="font-display text-base sm:text-lg">{index + 1}.</span>
-                <span className="font-medium text-sm sm:text-base">{player.name}</span>
-                {index === 0 && player.votesAgainst > 0 && (
-                  <Skull className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
+          {sortedPlayers.map((player, index) => {
+            const voters = votesMap.get(player.id) || [];
+            const isTopVoted = index === 0 && player.votesAgainst > 0;
+            const isTiedPlayer = isTie && player.votesAgainst === maxVotes;
+            
+            return (
+              <div
+                key={player.id}
+                className={`p-3 sm:p-4 rounded-lg ${
+                  isTiedPlayer
+                    ? 'bg-warning/20 border-2 border-warning'
+                    : isTopVoted
+                    ? 'bg-destructive/20 border-2 border-destructive'
+                    : 'bg-muted/30 border border-border'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <span className="font-display text-base sm:text-lg">{index + 1}.</span>
+                    <span className="font-medium text-sm sm:text-base">{player.name}</span>
+                    {isTopVoted && !isTie && (
+                      <Skull className="w-4 h-4 sm:w-5 sm:h-5 text-destructive" />
+                    )}
+                    {isTiedPlayer && (
+                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-warning" />
+                    )}
+                  </div>
+                  <span className={`font-display text-base sm:text-lg ${
+                    isTiedPlayer ? 'text-warning' : isTopVoted ? 'text-destructive' : 'text-muted-foreground'
+                  }`}>
+                    {player.votesAgainst}
+                  </span>
+                </div>
+                
+                {/* Show who voted for this player - OPEN VOTING */}
+                {voters.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-border/50">
+                    <span className="text-xs text-muted-foreground">Голосовали: </span>
+                    <span className="text-xs text-foreground">
+                      {voters.map(voterId => getPlayerName(voterId)).join(', ')}
+                    </span>
+                  </div>
                 )}
               </div>
-              <span className={`font-display text-base sm:text-lg ${
-                index === 0 && player.votesAgainst > 0 ? 'text-destructive' : 'text-muted-foreground'
-              }`}>
-                {player.votesAgainst}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* Tie notification */}
+        {isTie && (
+          <div className="p-3 mb-4 rounded-lg bg-warning/10 border border-warning/30">
+            <div className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="w-5 h-5" />
+              <span className="font-display">НИЧЬЯ!</span>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Будет дано 3 минуты на дополнительное обсуждение, после чего переголосование среди:{' '}
+              <span className="text-foreground font-medium">
+                {tiedPlayers.map(p => p.name).join(' и ')}
+              </span>
+            </p>
+          </div>
+        )}
 
         {currentPlayer.isHost && eliminatedPlayer && eliminatedPlayer.votesAgainst > 0 && (
           <div className="text-center">
-            <p className="text-destructive font-display mb-4 text-sm sm:text-base">
-              {eliminatedPlayer.name} изгоняется из бункера!
-            </p>
-            <button onClick={processVotingResults} className="bunker-button-danger">
-              Изгнать и продолжить
-            </button>
+            {isTie ? (
+              <button onClick={processVotingResults} className="bunker-button w-full">
+                Начать переголосование
+              </button>
+            ) : (
+              <>
+                <p className="text-destructive font-display mb-4 text-sm sm:text-base">
+                  {eliminatedPlayer.name} изгоняется из бункера!
+                </p>
+                <button onClick={processVotingResults} className="bunker-button-danger">
+                  Изгнать и продолжить
+                </button>
+              </>
+            )}
           </div>
         )}
         
@@ -132,8 +240,22 @@ const VotingPanel = memo(() => {
     <div className="bunker-card mb-4 sm:mb-6">
       <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
         <Skull className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
-        <h3 className="font-display text-base sm:text-lg text-destructive">ГОЛОСОВАНИЕ</h3>
+        <h3 className="font-display text-base sm:text-lg text-destructive">
+          {gameState.isRevote ? 'ПЕРЕГОЛОСОВАНИЕ' : 'ГОЛОСОВАНИЕ'}
+        </h3>
       </div>
+
+      {/* Revote info */}
+      {gameState.isRevote && gameState.tiedPlayers.length > 0 && (
+        <div className="p-3 mb-4 rounded-lg bg-warning/10 border border-warning/30">
+          <p className="text-sm text-muted-foreground">
+            Голосование только среди игроков с ничьей:{' '}
+            <span className="text-foreground font-medium">
+              {gameState.tiedPlayers.map(id => getPlayerName(id)).join(', ')}
+            </span>
+          </p>
+        </div>
+      )}
 
       {currentPlayer.isEliminated ? (
         <p className="text-muted-foreground text-center py-4 text-sm sm:text-base">
@@ -146,25 +268,49 @@ const VotingPanel = memo(() => {
           <p className="text-muted-foreground text-xs sm:text-sm mt-2">
             Ожидаем голоса остальных игроков ({votingProgress.count}/{votingProgress.total})
           </p>
+          
+          {/* Show current votes - open voting */}
+          {Object.keys(gameState.votes).length > 0 && (
+            <div className="mt-4 p-3 rounded-lg bg-muted/30 text-left">
+              <p className="text-xs text-muted-foreground mb-2">Уже проголосовали:</p>
+              <div className="space-y-1">
+                {Object.entries(gameState.votes).map(([voterId, targetId]) => (
+                  <p key={voterId} className="text-xs">
+                    <span className="text-foreground">{getPlayerName(voterId)}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="text-destructive">{getPlayerName(targetId)}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
           <p className="text-muted-foreground mb-3 sm:mb-4 text-sm sm:text-base">
-            Выберите игрока для голосования.
+            {gameState.isRevote 
+              ? 'Выберите игрока из ничьей для голосования.'
+              : 'Выберите игрока для голосования.'}
           </p>
 
           <div className="grid grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 mb-4">
             {alivePlayers
               .filter(p => p.id !== currentPlayer.id)
-              .map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => setSelectedTarget(player.id)}
-                  className={`vote-button text-xs sm:text-sm py-2 sm:py-3 ${selectedTarget === player.id ? 'selected' : ''}`}
-                >
-                  {player.name}
-                </button>
-              ))}
+              .map((player) => {
+                const canVoteFor = votablePlayersIds.has(player.id);
+                return (
+                  <button
+                    key={player.id}
+                    onClick={() => canVoteFor && setSelectedTarget(player.id)}
+                    disabled={!canVoteFor}
+                    className={`vote-button text-xs sm:text-sm py-2 sm:py-3 ${
+                      selectedTarget === player.id ? 'selected' : ''
+                    } ${!canVoteFor ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  >
+                    {player.name}
+                  </button>
+                );
+              })}
           </div>
 
           <button
@@ -174,6 +320,22 @@ const VotingPanel = memo(() => {
           >
             ПРОГОЛОСОВАТЬ
           </button>
+          
+          {/* Show current votes - open voting */}
+          {Object.keys(gameState.votes).length > 0 && (
+            <div className="mt-4 p-3 rounded-lg bg-muted/30">
+              <p className="text-xs text-muted-foreground mb-2">Уже проголосовали:</p>
+              <div className="space-y-1">
+                {Object.entries(gameState.votes).map(([voterId, targetId]) => (
+                  <p key={voterId} className="text-xs">
+                    <span className="text-foreground">{getPlayerName(voterId)}</span>
+                    <span className="text-muted-foreground"> → </span>
+                    <span className="text-destructive">{getPlayerName(targetId)}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
