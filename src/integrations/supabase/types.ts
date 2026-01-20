@@ -138,9 +138,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cast_vote_atomic: {
+        Args: { p_game_id: string; p_target_id: string; p_voter_id: string }
+        Returns: boolean
+      }
+      eliminate_player_atomic: {
+        Args: { p_player_id: string }
+        Returns: boolean
+      }
       get_user_game_id: { Args: never; Returns: string }
       is_game_host: { Args: { _game_id: string }; Returns: boolean }
       is_player_in_game: { Args: { _game_id: string }; Returns: boolean }
+      mark_turn_revealed: {
+        Args: { p_game_id: string; p_phase_ends_at: string }
+        Returns: boolean
+      }
+      reset_votes_atomic: { Args: { p_game_id: string }; Returns: boolean }
+      reveal_characteristic_atomic: {
+        Args: { p_characteristic: string; p_player_id: string }
+        Returns: boolean
+      }
+      update_game_state: {
+        Args: {
+          p_current_player_index?: number
+          p_current_round?: number
+          p_game_id: string
+          p_is_revote?: boolean
+          p_phase?: string
+          p_phase_ends_at?: string
+          p_tied_players?: string[]
+          p_turn_has_revealed?: boolean
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
