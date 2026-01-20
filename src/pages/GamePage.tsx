@@ -14,6 +14,7 @@ import CardRevealAnimation from '@/components/game/CardRevealAnimation';
 import { useServerTimer } from '@/hooks/useServerTimer';
 import { Player, Characteristics } from '@/types/game';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface RevealInfo {
   playerName: string;
@@ -374,7 +375,21 @@ const GamePage = () => {
                 {gameState.players.map((player, index) => (
                   <div 
                     key={player.id}
-                    onClick={() => setSelectedPlayer(player)}
+                    onClick={async () => {
+                      setSelectedPlayer(player);
+                      // Track profile view (don't track viewing your own profile)
+                      if (player.id !== currentPlayer.id && gameState) {
+                        try {
+                          await supabase.from('profile_views').insert({
+                            game_id: gameState.id,
+                            viewer_id: currentPlayer.id,
+                            viewed_player_id: player.id
+                          });
+                        } catch (err) {
+                          console.error('Error tracking profile view:', err);
+                        }
+                      }
+                    }}
                     className="cursor-pointer h-full"
                   >
                     <PlayerCard
