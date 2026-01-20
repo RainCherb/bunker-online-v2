@@ -61,6 +61,8 @@ export interface GameState {
   timeRemaining: number;
   votingPhase: VotingPhase;
   votes: Record<string, string>; // voterId -> targetId
+  tiedPlayers: string[]; // Player IDs in tie for revote
+  isRevote: boolean; // Whether this is a revote round
 }
 
 export type GamePhase = 

@@ -27,9 +27,11 @@ export type Database = {
           current_player_index: number
           current_round: number
           id: string
+          is_revote: boolean | null
           max_rounds: number
           phase: string
           phase_ends_at: string | null
+          tied_players: string[] | null
           time_remaining: number
           turn_has_revealed: boolean
           updated_at: string
@@ -48,9 +50,11 @@ export type Database = {
           current_player_index?: number
           current_round?: number
           id: string
+          is_revote?: boolean | null
           max_rounds?: number
           phase?: string
           phase_ends_at?: string | null
+          tied_players?: string[] | null
           time_remaining?: number
           turn_has_revealed?: boolean
           updated_at?: string
@@ -69,9 +73,11 @@ export type Database = {
           current_player_index?: number
           current_round?: number
           id?: string
+          is_revote?: boolean | null
           max_rounds?: number
           phase?: string
           phase_ends_at?: string | null
+          tied_players?: string[] | null
           time_remaining?: number
           turn_has_revealed?: boolean
           updated_at?: string

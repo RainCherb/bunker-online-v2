@@ -70,6 +70,8 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
   timeRemaining: gameRow.time_remaining,
   votingPhase: gameRow.voting_phase,
   votes: gameRow.votes || {},
+  tiedPlayers: gameRow.tied_players || [],
+  isRevote: gameRow.is_revote || false,
 });
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -522,7 +524,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [gameState, db]);
 
-  // Process voting results
+  // Process voting results - handles ties with revote
   const processVotingResults = useCallback(async () => {
     if (!gameState) return;
     
@@ -532,7 +534,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (maxVotes === 0) {
       // No votes cast, skip elimination
       const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
-      await db.updateGamePhase(gameState.id, { phase: 'turn', phase_ends_at: newEndsAt, turn_has_revealed: false });
+      await db.updateGamePhase(gameState.id, { 
+        phase: 'turn', 
+        phase_ends_at: newEndsAt, 
+        turn_has_revealed: false,
+        tied_players: [],
+        is_revote: false
+      });
       await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, {
         current_round: gameState.currentRound + 1,
@@ -545,12 +553,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const playersWithMaxVotes = alivePlayers.filter(p => p.votesAgainst === maxVotes);
     
     if (playersWithMaxVotes.length === 1) {
+      // Clear winner - eliminate and proceed
       await db.eliminatePlayer(playersWithMaxVotes[0].id);
-      await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
+      await db.updateGamePhase(gameState.id, { 
+        phase: 'farewell', 
+        phase_ends_at: null,
+        tied_players: [],
+        is_revote: false
+      });
     } else {
-      // Tie - eliminate the first one
-      await db.eliminatePlayer(playersWithMaxVotes[0].id);
-      await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
+      // TIE! Start 3-minute discussion and then revote only among tied players
+      const tiedPlayerIds = playersWithMaxVotes.map(p => p.id);
+      const discussionEndsAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
+      
+      // Reset votes and set up for revote
+      await db.resetVotes(gameState.id);
+      await db.updateGamePhase(gameState.id, { 
+        phase: 'defense', 
+        phase_ends_at: discussionEndsAt,
+        tied_players: tiedPlayerIds,
+        is_revote: true
+      });
     }
   }, [gameState, db]);
 

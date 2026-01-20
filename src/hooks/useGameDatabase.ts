@@ -75,6 +75,8 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
   timeRemaining: gameRow.time_remaining,
   votingPhase: gameRow.voting_phase,
   votes: gameRow.votes || {},
+  tiedPlayers: gameRow.tied_players || [],
+  isRevote: gameRow.is_revote || false,
 });
 
 export function useGameDatabase() {
@@ -347,6 +349,8 @@ export function useGameDatabase() {
     votes: Record<string, string>;
     phase_ends_at: string | null;
     turn_has_revealed: boolean;
+    tied_players: string[];
+    is_revote: boolean;
   }>): Promise<boolean> => {
     const { error } = await supabase
       .from('games')
