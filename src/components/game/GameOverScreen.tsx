@@ -1,11 +1,70 @@
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Trophy, Skull, Home, RefreshCw } from 'lucide-react';
+import { Shield, Trophy, Skull, Home } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Player } from '@/types/game';
+import BestPlayerCard from './BestPlayerCard';
 
 const GameOverScreen = () => {
   const { gameState, clearSession } = useGame();
   const navigate = useNavigate();
+  const [bestPlayer, setBestPlayer] = useState<Player | null>(null);
+  const [showBestPlayer, setShowBestPlayer] = useState(false);
+
+  useEffect(() => {
+    if (!gameState) return;
+
+    // Fetch profile view stats after 4 seconds
+    const timer = setTimeout(async () => {
+      try {
+        const { data: views, error } = await supabase
+          .from('profile_views')
+          .select('viewed_player_id')
+          .eq('game_id', gameState.id);
+
+        if (error || !views || views.length === 0) {
+          // No views recorded, pick random player
+          const randomIndex = Math.floor(Math.random() * gameState.players.length);
+          setBestPlayer(gameState.players[randomIndex]);
+          setShowBestPlayer(true);
+          return;
+        }
+
+        // Count views per player
+        const viewCounts: Record<string, number> = {};
+        views.forEach(v => {
+          viewCounts[v.viewed_player_id] = (viewCounts[v.viewed_player_id] || 0) + 1;
+        });
+
+        // Find max view count
+        const maxViews = Math.max(...Object.values(viewCounts));
+
+        // Get all players with max views
+        const topPlayerIds = Object.entries(viewCounts)
+          .filter(([_, count]) => count === maxViews)
+          .map(([id]) => id);
+
+        // Pick random if there's a tie
+        const selectedPlayerId = topPlayerIds[Math.floor(Math.random() * topPlayerIds.length)];
+        const selectedPlayer = gameState.players.find(p => p.id === selectedPlayerId);
+
+        if (selectedPlayer) {
+          setBestPlayer(selectedPlayer);
+          setShowBestPlayer(true);
+        }
+      } catch (err) {
+        console.error('Error fetching profile views:', err);
+        // Fallback to random player
+        const randomIndex = Math.floor(Math.random() * gameState.players.length);
+        setBestPlayer(gameState.players[randomIndex]);
+        setShowBestPlayer(true);
+      }
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [gameState]);
 
   if (!gameState) return null;
 
@@ -15,6 +74,10 @@ const GameOverScreen = () => {
   const handleGoHome = () => {
     clearSession();
     navigate('/');
+  };
+
+  const handleCloseBestPlayer = () => {
+    setShowBestPlayer(false);
   };
 
   return (
@@ -147,6 +210,13 @@ const GameOverScreen = () => {
           </button>
         </motion.div>
       </div>
+
+      {/* Best Player Card Modal */}
+      <BestPlayerCard 
+        player={bestPlayer} 
+        isVisible={showBestPlayer} 
+        onClose={handleCloseBestPlayer} 
+      />
     </div>
   );
 };

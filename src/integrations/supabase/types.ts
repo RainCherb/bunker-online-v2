@@ -133,6 +133,30 @@ export type Database = {
           },
         ]
       }
+      profile_views: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          viewed_player_id: string
+          viewer_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          viewed_player_id: string
+          viewer_id: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          viewed_player_id?: string
+          viewer_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
