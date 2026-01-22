@@ -414,7 +414,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [gameState, getAvailableCharacteristics, db]);
 
-  // Move to next player turn
+  // Move to next player turn - uses RPC to allow any player in game to advance
   const nextPlayerTurn = useCallback(async () => {
     if (!gameState) return;
     
@@ -432,31 +432,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (gameState.currentRound === 1) {
         const discussionEndsAt = new Date(Date.now() + 30 * 1000).toISOString();
         console.log('[NextTurn] All players done in round 1, going to discussion');
-        await db.updateGamePhase(gameState.id, { 
-          phase: 'discussion',
-          current_player_index: 0,
-          phase_ends_at: discussionEndsAt,
-          turn_has_revealed: false
+        await supabase.rpc('update_game_state', { 
+          p_game_id: gameState.id,
+          p_phase: 'discussion',
+          p_current_player_index: 0,
+          p_phase_ends_at: discussionEndsAt,
+          p_turn_has_revealed: false
         });
       } else {
         // Round 2+: Go to voting
         console.log('[NextTurn] All players done in round', gameState.currentRound, ', going to defense');
-        await db.updateGamePhase(gameState.id, { 
-          phase: 'defense',
-          current_player_index: 0,
-          phase_ends_at: null,
-          turn_has_revealed: false
+        await supabase.rpc('update_game_state', { 
+          p_game_id: gameState.id,
+          p_phase: 'defense',
+          p_current_player_index: 0,
+          p_turn_has_revealed: false
         });
       }
     } else {
       console.log('[NextTurn] Moving to player index:', nextIndex);
-      await db.updateGamePhase(gameState.id, { 
-        current_player_index: nextIndex,
-        phase_ends_at: newEndsAt,
-        turn_has_revealed: false
+      await supabase.rpc('update_game_state', { 
+        p_game_id: gameState.id,
+        p_current_player_index: nextIndex,
+        p_phase_ends_at: newEndsAt,
+        p_turn_has_revealed: false
       });
     }
-  }, [gameState, db]);
+  }, [gameState]);
 
   // Move to next phase
   const nextPhase = useCallback(async () => {

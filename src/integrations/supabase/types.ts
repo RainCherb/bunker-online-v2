@@ -157,6 +157,27 @@ export type Database = {
         }
         Relationships: []
       }
+      game_cards: {
+        Row: {
+          id: string
+          cards_data: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          cards_data: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          cards_data?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

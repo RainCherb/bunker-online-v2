@@ -16,7 +16,7 @@ const GameOverScreen = () => {
   useEffect(() => {
     if (!gameState) return;
 
-    // Fetch profile view stats after 4 seconds
+    // Fetch profile view stats after 3 seconds
     const timer = setTimeout(async () => {
       try {
         const { data: views, error } = await supabase
@@ -61,7 +61,7 @@ const GameOverScreen = () => {
         setBestPlayer(gameState.players[randomIndex]);
         setShowBestPlayer(true);
       }
-    }, 4000);
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, [gameState]);
