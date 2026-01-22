@@ -1,8 +1,75 @@
-import { memo, useCallback, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
-import { X, Eye, Lock, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Eye, Lock, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
+
+// Modal for showing full card details
+interface CardDetailModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  cardType: keyof Characteristics | null;
+  cardValue: string;
+}
+
+const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailModalProps) => {
+  if (!isOpen || !cardType) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: 'spring', damping: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border-2 border-primary/50 rounded-xl p-6 max-w-md w-full shadow-2xl"
+            style={{ boxShadow: '0 0 40px hsl(var(--primary) / 0.3)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-primary" />
+                <h3 className="font-display text-lg text-primary uppercase tracking-wider">
+                  {CHARACTERISTIC_NAMES[cardType]}
+                </h3>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1 rounded-lg hover:bg-muted transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mb-4" />
+
+            {/* Card Value */}
+            <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
+              <p className="text-lg text-foreground leading-relaxed whitespace-pre-wrap">
+                {cardValue}
+              </p>
+            </div>
+
+            {/* Close hint */}
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              Нажмите где угодно, чтобы закрыть
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 interface CharacterPanelProps {
   player: Player;
@@ -20,6 +87,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
     getAvailableCharacteristics,
     hasRevealedThisTurn
   } = useGame();
+
+  // State for card detail modal
+  const [selectedCard, setSelectedCard] = useState<{ type: keyof Characteristics; value: string } | null>(null);
   
   const isTurnPhase = gameState?.phase === 'turn';
   const currentTurnPlayer = getCurrentTurnPlayer();
@@ -38,6 +108,12 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
       await revealCharacteristic(player.id, key);
     }
   }, [canRevealCharacteristic, player.id, revealCharacteristic]);
+
+  const handleCardClick = useCallback((key: keyof Characteristics, value: string) => {
+    if (isOwn) {
+      setSelectedCard({ type: key, value });
+    }
+  }, [isOwn]);
 
   return (
     <div className="p-4 sm:p-6 h-full flex flex-col">
@@ -138,9 +214,13 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                     </span>
                   </div>
                   {isRevealed || isOwn ? (
-                    <p className={`text-sm sm:text-base font-medium truncate ${isRevealed ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <button
+                      onClick={() => handleCardClick(key, value)}
+                      className={`text-sm sm:text-base font-medium text-left w-full truncate hover:text-primary transition-colors ${isRevealed ? 'text-foreground' : 'text-muted-foreground'} ${isOwn ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
+                      title={isOwn ? 'Нажмите для подробностей' : undefined}
+                    >
                       {value}
-                    </p>
+                    </button>
                   ) : (
                     <p className="text-muted-foreground italic text-sm">Скрыто</p>
                   )}
@@ -185,8 +265,22 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
             <Lock className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
             <span>Скрыто от других</span>
           </div>
+          {isOwn && (
+            <div className="flex items-center gap-2">
+              <Info className="w-3 h-3 sm:w-4 sm:h-4 text-secondary" />
+              <span>Нажмите на карту для подробностей</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Card Detail Modal */}
+      <CardDetailModal
+        isOpen={!!selectedCard}
+        onClose={() => setSelectedCard(null)}
+        cardType={selectedCard?.type || null}
+        cardValue={selectedCard?.value || ''}
+      />
     </div>
   );
 });
