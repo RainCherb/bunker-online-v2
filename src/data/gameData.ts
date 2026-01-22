@@ -1,5 +1,39 @@
 import { Bunker, Catastrophe, Characteristics } from '@/types/game';
 
+// Helper to load custom cards from localStorage
+interface CardCategory {
+  name: string;
+  key: string;
+  cards: string[];
+  description: string;
+}
+
+function getCustomCards(): Record<string, string[]> | null {
+  try {
+    const saved = localStorage.getItem('bunker_admin_cards');
+    if (saved) {
+      const categories: CardCategory[] = JSON.parse(saved);
+      const result: Record<string, string[]> = {};
+      categories.forEach(cat => {
+        result[cat.key] = cat.cards;
+      });
+      return result;
+    }
+  } catch (e) {
+    console.warn('Failed to load custom cards:', e);
+  }
+  return null;
+}
+
+// Get cards with localStorage override
+function getCards(key: string, defaults: string[]): string[] {
+  const custom = getCustomCards();
+  if (custom && custom[key] && custom[key].length > 0) {
+    return custom[key];
+  }
+  return defaults;
+}
+
 export const CATASTROPHES: Catastrophe[] = [
   {
     name: 'Ядерная зима',
@@ -671,6 +705,15 @@ export const ACTION_CARDS: string[] = [
 // Generate unique characteristics for all players in a game session
 // This ensures no duplicate cards across players
 export function generateUniqueCharacteristicsForPlayers(playerCount: number): Characteristics[] {
+  // Load custom cards or use defaults
+  const professions = getCards('professions', PROFESSIONS);
+  const hobbies = getCards('hobbies', HOBBIES);
+  const baggage = getCards('baggage', BAGGAGE);
+  const facts = getCards('facts', FACTS);
+  const actions = getCards('actions', ACTION_CARDS);
+  const biologyTemplates = getCards('biology', BIOLOGY_TEMPLATES);
+  const healthConditions = getCards('health', HEALTH_CONDITIONS_RAW);
+
   const usedCards: Record<string, Set<string>> = {
     profession: new Set(),
     hobby: new Set(),
@@ -682,7 +725,6 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   const getUniqueFromArray = <T extends string>(arr: T[], usedSet: Set<string>): T => {
     const available = arr.filter(item => !usedSet.has(item));
     if (available.length === 0) {
-      // Fallback: if all cards are used, pick random
       return arr[Math.floor(Math.random() * arr.length)];
     }
     const selected = available[Math.floor(Math.random() * available.length)];
@@ -691,13 +733,30 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   };
   
   const getUniqueActionCard = (usedSet: Set<string>): string => {
-    const available = ACTION_CARDS.filter(card => !usedSet.has(card));
+    const available = actions.filter(card => !usedSet.has(card));
     if (available.length === 0) {
-      return ACTION_CARDS[Math.floor(Math.random() * ACTION_CARDS.length)];
+      return actions[Math.floor(Math.random() * actions.length)];
     }
     const selected = available[Math.floor(Math.random() * available.length)];
     usedSet.add(selected);
     return selected;
+  };
+
+  // Generate biology with custom templates
+  const generateBiologyCustom = (): string => {
+    const template = biologyTemplates[Math.floor(Math.random() * biologyTemplates.length)];
+    const age = Math.floor(Math.random() * (101 - 16 + 1)) + 16;
+    return template.replace('{age}', age.toString());
+  };
+
+  // Generate health with custom conditions
+  const generateHealthCustom = (): string => {
+    const condition = healthConditions[Math.floor(Math.random() * healthConditions.length)];
+    if (condition.includes('[Тяжесть: %]')) {
+      const severity = Math.floor(Math.random() * 10 + 1) * 10;
+      return condition.replace('[Тяжесть: %]', `[Тяжесть: ${severity}%]`);
+    }
+    return condition;
   };
   
   const characteristics: Characteristics[] = [];
@@ -707,12 +766,12 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
     const actionCard2 = getUniqueActionCard(usedCards.actionCards);
     
     characteristics.push({
-      profession: getUniqueFromArray(PROFESSIONS, usedCards.profession),
-      biology: generateBiology(), // Biology always generates unique with random age
-      health: generateHealthCondition(), // Health always generates unique with random severity
-      hobby: getUniqueFromArray(HOBBIES, usedCards.hobby),
-      baggage: getUniqueFromArray(BAGGAGE, usedCards.baggage),
-      fact: getUniqueFromArray(FACTS, usedCards.fact),
+      profession: getUniqueFromArray(professions, usedCards.profession),
+      biology: generateBiologyCustom(),
+      health: generateHealthCustom(),
+      hobby: getUniqueFromArray(hobbies, usedCards.hobby),
+      baggage: getUniqueFromArray(baggage, usedCards.baggage),
+      fact: getUniqueFromArray(facts, usedCards.fact),
       actionCard1,
       actionCard2,
     });
@@ -723,6 +782,13 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
 
 // Legacy function for single player (kept for compatibility but uses new biology/health generation)
 export function generateRandomCharacteristics(): Characteristics {
+  // Load custom cards or use defaults
+  const professions = getCards('professions', PROFESSIONS);
+  const hobbies = getCards('hobbies', HOBBIES);
+  const baggage = getCards('baggage', BAGGAGE);
+  const facts = getCards('facts', FACTS);
+  const actions = getCards('actions', ACTION_CARDS);
+
   const getRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const getUniqueRandom = <T>(arr: T[], exclude: T): T => {
     let result = getRandom(arr);
@@ -732,16 +798,16 @@ export function generateRandomCharacteristics(): Characteristics {
     return result;
   };
   
-  const actionCard1 = getRandom(ACTION_CARDS);
-  const actionCard2 = getUniqueRandom(ACTION_CARDS, actionCard1);
+  const actionCard1 = getRandom(actions);
+  const actionCard2 = getUniqueRandom(actions, actionCard1);
   
   return {
-    profession: getRandom(PROFESSIONS),
+    profession: getRandom(professions),
     biology: generateBiology(),
     health: generateHealthCondition(),
-    hobby: getRandom(HOBBIES),
-    baggage: getRandom(BAGGAGE),
-    fact: getRandom(FACTS),
+    hobby: getRandom(hobbies),
+    baggage: getRandom(baggage),
+    fact: getRandom(facts),
     actionCard1,
     actionCard2,
   };
