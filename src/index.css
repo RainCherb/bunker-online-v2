@@ -160,19 +160,22 @@
     background: hsl(var(--bunker-steel));
   }
 
-  /* Simplified for mobile performance */
+  /* Disabled on mobile for performance */
   .radiation-gradient {
-    background: radial-gradient(ellipse at center,
-      hsl(var(--primary) / 0.15) 0%,
-      transparent 60%);
+    background: transparent;
   }
 
-  /* Disabled on mobile for performance */
   .scanline {
     background: transparent;
   }
   
   @media (min-width: 1024px) {
+    .radiation-gradient {
+      background: radial-gradient(ellipse at center,
+        hsl(var(--primary) / 0.15) 0%,
+        transparent 60%);
+    }
+    
     .scanline {
       background: repeating-linear-gradient(
         0deg,
@@ -244,6 +247,19 @@
 
   .characteristic-badge.hidden {
     @apply bg-muted/30 border-muted-foreground/20 text-muted-foreground;
+  }
+
+  /* Safe area support for notched phones */
+  .safe-area-inset {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* iOS scroll momentum */
+  .scroll-touch {
+    -webkit-overflow-scrolling: touch;
   }
 
   .player-card {

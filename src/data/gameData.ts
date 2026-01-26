@@ -10,6 +10,9 @@ interface CardCategory {
 
 function getCustomCards(): Record<string, string[]> | null {
   try {
+    // Check if localStorage is available (Safari private mode throws error)
+    if (typeof localStorage === 'undefined') return null;
+    
     const saved = localStorage.getItem('bunker_admin_cards');
     if (saved) {
       const categories: CardCategory[] = JSON.parse(saved);
@@ -20,7 +23,10 @@ function getCustomCards(): Record<string, string[]> | null {
       return result;
     }
   } catch (e) {
-    console.warn('Failed to load custom cards:', e);
+    // Handle Safari private mode and other localStorage errors
+    if (import.meta.env.DEV) {
+      console.warn('Failed to load custom cards (localStorage may be unavailable):', e);
+    }
   }
   return null;
 }

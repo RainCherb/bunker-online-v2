@@ -149,6 +149,29 @@ const GamePage = () => {
     await nextPlayerTurn();
   };
 
+  // Auto-show voting results after 2 seconds when all players have voted
+  const autoResultsTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!gameState || gameState.phase !== 'voting' || !currentPlayer?.isHost) return;
+    
+    const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+    const allVoted = alivePlayers.every(p => p.hasVoted);
+    
+    if (allVoted && !autoResultsTriggeredRef.current) {
+      autoResultsTriggeredRef.current = true;
+      console.log('[AutoResults] All players voted, showing results in 2 seconds...');
+      const timer = setTimeout(() => {
+        nextPhase();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+    
+    // Reset flag when not in voting phase or not all voted
+    if (!allVoted) {
+      autoResultsTriggeredRef.current = false;
+    }
+  }, [gameState, currentPlayer?.isHost, nextPhase]);
+
   // Handle leave game
   const handleLeaveGame = () => {
     clearSession();
@@ -354,21 +377,6 @@ const GamePage = () => {
               {/* Voting Panel */}
               {(isVotingPhase || isResultsPhase) && <VotingPanel />}
 
-              {/* First Round Skip Voting Option */}
-              {gameState.phase === 'discussion' && gameState.currentRound > 1 && currentPlayer.isHost && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="bunker-card mb-4 sm:mb-6 text-center"
-                >
-                  <p className="text-muted-foreground mb-3 sm:mb-4 text-sm sm:text-base">
-                    Время для обсуждения перед голосованием
-                  </p>
-                  <button onClick={nextPhase} className="bunker-button text-sm sm:text-base">
-                    Перейти к защите
-                  </button>
-                </motion.div>
-              )}
 
               {/* Players Grid - Mobile optimized with equal columns */}
               <div className="players-grid-mobile">
@@ -470,19 +478,21 @@ const MobileGameInfoButton = () => {
     <>
       <button 
         onClick={() => setShowInfo(true)}
-        className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg"
+        className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+        aria-label="Показать информацию об игре"
       >
-        <Shield className="w-6 h-6" />
+        <Shield className="w-7 h-7" />
       </button>
       
       {showInfo && (
-        <div className="fixed inset-0 bg-background/95 z-50 overflow-y-auto">
-          <div className="p-4">
+        <div className="fixed inset-0 bg-background/95 z-50 overflow-y-auto safe-area-inset scroll-touch">
+          <div className="p-4 pt-16">
             <button 
               onClick={() => setShowInfo(false)}
-              className="absolute top-4 right-4 p-2"
+              className="absolute top-4 right-4 p-3 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-muted transition-colors"
+              aria-label="Закрыть"
             >
-              ✕
+              <span className="text-xl">✕</span>
             </button>
             <GameInfo />
           </div>

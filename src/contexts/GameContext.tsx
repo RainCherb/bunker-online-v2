@@ -399,8 +399,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Pick the first available
-    const characteristic = available[0];
+    // Pick a random available characteristic
+    const randomIndex = Math.floor(Math.random() * available.length);
+    const characteristic = available[randomIndex];
     console.log('[AutoReveal] Auto-revealing:', characteristic, 'for player:', player.name);
     
     // Directly update DB to avoid canReveal checks since this is auto-reveal
@@ -536,17 +537,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const maxVotes = Math.max(...alivePlayers.map(p => p.votesAgainst));
     
     if (maxVotes === 0) {
-      // No votes cast, skip elimination
+      // No votes cast, skip elimination - single atomic update
       const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
+      await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, { 
         phase: 'turn', 
         phase_ends_at: newEndsAt, 
         turn_has_revealed: false,
         tied_players: [],
-        is_revote: false
-      });
-      await db.resetVotes(gameState.id);
-      await db.updateGamePhase(gameState.id, {
+        is_revote: false,
         current_round: gameState.currentRound + 1,
         current_player_index: 0,
       });
@@ -566,18 +565,33 @@ export function GameProvider({ children }: { children: ReactNode }) {
         is_revote: false
       });
     } else {
-      // TIE! Start 3-minute discussion and then revote only among tied players
-      const tiedPlayerIds = playersWithMaxVotes.map(p => p.id);
-      const discussionEndsAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
-      
-      // Reset votes and set up for revote
-      await db.resetVotes(gameState.id);
-      await db.updateGamePhase(gameState.id, { 
-        phase: 'defense', 
-        phase_ends_at: discussionEndsAt,
-        tied_players: tiedPlayerIds,
-        is_revote: true
-      });
+      // TIE! Check if this is already a revote - if so, eliminate all tied players
+      if (gameState.isRevote) {
+        // Second tie - eliminate ALL tied players
+        console.log('[Voting] Second tie detected, eliminating all tied players:', playersWithMaxVotes.map(p => p.name));
+        for (const tiedPlayer of playersWithMaxVotes) {
+          await db.eliminatePlayer(tiedPlayer.id);
+        }
+        await db.updateGamePhase(gameState.id, { 
+          phase: 'farewell', 
+          phase_ends_at: null,
+          tied_players: [],
+          is_revote: false
+        });
+      } else {
+        // First tie - Start 3-minute discussion and then revote only among tied players
+        const tiedPlayerIds = playersWithMaxVotes.map(p => p.id);
+        const discussionEndsAt = new Date(Date.now() + 3 * 60 * 1000).toISOString(); // 3 minutes
+        
+        // Reset votes and set up for revote
+        await db.resetVotes(gameState.id);
+        await db.updateGamePhase(gameState.id, { 
+          phase: 'defense', 
+          phase_ends_at: discussionEndsAt,
+          tied_players: tiedPlayerIds,
+          is_revote: true
+        });
+      }
     }
   }, [gameState, db]);
 

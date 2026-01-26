@@ -30,7 +30,7 @@ const CardRevealAnimation = ({
           className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm"
           onClick={onComplete}
         >
-          {/* Glow effect */}
+          {/* Glow effect - larger for full screen */}
           <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ 
@@ -38,7 +38,7 @@ const CardRevealAnimation = ({
               opacity: [0, 0.6, 0.4]
             }}
             transition={{ duration: 0.8, times: [0, 0.6, 1] }}
-            className="absolute w-64 h-64 sm:w-96 sm:h-96 rounded-full bg-primary/30 blur-3xl"
+            className="absolute w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] rounded-full bg-primary/30 blur-3xl"
           />
 
           {/* Sparkles */}
@@ -87,14 +87,14 @@ const CardRevealAnimation = ({
             }}
             className="relative z-10 mx-4"
           >
-            {/* Card container */}
+            {/* Card container - MUCH LARGER, almost full screen */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="bunker-card text-center max-w-sm sm:max-w-md px-6 py-8 sm:px-10 sm:py-12"
+              className="bunker-card text-center w-[90vw] max-w-2xl px-6 py-10 sm:px-12 sm:py-16"
               style={{
-                boxShadow: '0 0 60px hsl(var(--primary) / 0.4), 0 0 100px hsl(var(--primary) / 0.2)'
+                boxShadow: '0 0 80px hsl(var(--primary) / 0.5), 0 0 150px hsl(var(--primary) / 0.3)'
               }}
             >
               {/* Player info */}
@@ -102,7 +102,7 @@ const CardRevealAnimation = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="text-muted-foreground text-sm sm:text-base mb-2"
+                className="text-muted-foreground text-base sm:text-xl mb-2"
               >
                 Игрок <span className="text-secondary font-display">{playerName}</span>
               </motion.p>
@@ -111,7 +111,7 @@ const CardRevealAnimation = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
-                className="text-muted-foreground text-sm sm:text-base mb-4 sm:mb-6"
+                className="text-muted-foreground text-base sm:text-xl mb-6 sm:mb-8"
               >
                 открывает карту
               </motion.p>
@@ -121,9 +121,9 @@ const CardRevealAnimation = ({
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.7, type: "spring", stiffness: 200 }}
-                className="inline-block px-4 py-2 rounded-lg bg-primary/20 border border-primary/50 mb-4 sm:mb-6"
+                className="inline-block px-6 py-3 rounded-lg bg-primary/20 border-2 border-primary/50 mb-6 sm:mb-8"
               >
-                <span className="font-display text-primary text-sm sm:text-lg uppercase tracking-wider">
+                <span className="font-display text-primary text-lg sm:text-2xl uppercase tracking-wider">
                   {characteristicName}
                 </span>
               </motion.div>
@@ -133,10 +133,10 @@ const CardRevealAnimation = ({
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ delay: 0.8, duration: 0.4 }}
-                className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mb-4 sm:mb-6"
+                className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mb-6 sm:mb-8"
               />
 
-              {/* Revealed value */}
+              {/* Revealed value - MUCH LARGER */}
               <motion.div
                 initial={{ opacity: 0, y: 20, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -146,8 +146,9 @@ const CardRevealAnimation = ({
                   stiffness: 150,
                   damping: 15
                 }}
+                className="px-4 py-6 sm:px-8 sm:py-8 rounded-xl bg-primary/10 border border-primary/30"
               >
-                <p className="font-display text-xl sm:text-3xl text-primary text-glow leading-tight">
+                <p className="font-display text-2xl sm:text-4xl md:text-5xl text-primary text-glow leading-tight">
                   {characteristicValue}
                 </p>
               </motion.div>
@@ -157,7 +158,7 @@ const CardRevealAnimation = ({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.6 }}
                 transition={{ delay: 1.5 }}
-                className="text-xs text-muted-foreground mt-6 sm:mt-8"
+                className="text-sm text-muted-foreground mt-8 sm:mt-10"
               >
                 Нажмите, чтобы закрыть
               </motion.p>

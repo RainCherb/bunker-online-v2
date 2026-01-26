@@ -44,7 +44,7 @@ const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailMod
               </div>
               <button
                 onClick={onClose}
-                className="p-1 rounded-lg hover:bg-muted transition-colors"
+                className="p-2 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -88,8 +88,11 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
     hasRevealedThisTurn
   } = useGame();
 
-  // State for card detail modal
-  const [selectedCard, setSelectedCard] = useState<{ type: keyof Characteristics; value: string } | null>(null);
+  // State for card detail modal (only store type, get value from player to avoid stale data)
+  const [selectedCard, setSelectedCard] = useState<{ type: keyof Characteristics } | null>(null);
+  
+  // Debounce state to prevent double-clicks
+  const [isRevealing, setIsRevealing] = useState(false);
   
   const isTurnPhase = gameState?.phase === 'turn';
   const currentTurnPlayer = getCurrentTurnPlayer();
@@ -104,19 +107,31 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
   );
 
   const handleReveal = useCallback(async (key: keyof Characteristics) => {
+    if (isRevealing) return; // Prevent double-clicks
     if (canRevealCharacteristic(player.id, key)) {
-      await revealCharacteristic(player.id, key);
+      setIsRevealing(true);
+      try {
+        await revealCharacteristic(player.id, key);
+      } finally {
+        // Reset after a delay to prevent rapid re-clicks
+        setTimeout(() => setIsRevealing(false), 1000);
+      }
     }
-  }, [canRevealCharacteristic, player.id, revealCharacteristic]);
+  }, [canRevealCharacteristic, player.id, revealCharacteristic, isRevealing]);
 
-  const handleCardClick = useCallback((key: keyof Characteristics, value: string) => {
+  const handleCardClick = useCallback((key: keyof Characteristics) => {
     if (isOwn) {
-      setSelectedCard({ type: key, value });
+      setSelectedCard({ type: key });
     }
   }, [isOwn]);
 
+  // Get current card value from player (avoids stale data)
+  const getCardValue = useCallback((key: keyof Characteristics) => {
+    return player.characteristics[key] || '';
+  }, [player.characteristics]);
+
   return (
-    <div className="p-4 sm:p-6 h-full flex flex-col">
+    <div className="p-4 sm:p-6 h-full flex flex-col safe-area-inset">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 sm:mb-6 flex-shrink-0">
         <div>
@@ -138,7 +153,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-muted transition-colors"
+            className="p-2 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
@@ -183,7 +198,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
       )}
 
       {/* Characteristics - optimized with less animation */}
-      <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 will-change-scroll">
+      <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 will-change-scroll scroll-touch">
         {CHARACTERISTICS_ORDER.map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
           const value = player.characteristics[key];
@@ -215,7 +230,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                   </div>
                   {isRevealed || isOwn ? (
                     <button
-                      onClick={() => handleCardClick(key, value)}
+                      onClick={() => handleCardClick(key)}
                       className={`text-sm sm:text-base font-medium text-left w-full truncate hover:text-primary transition-colors ${isRevealed ? 'text-foreground' : 'text-muted-foreground'} ${isOwn ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
                       title={isOwn ? 'Нажмите для подробностей' : undefined}
                     >
@@ -229,9 +244,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                 {isOwn && !isRevealed && (
                   <button
                     onClick={() => handleReveal(key)}
-                    disabled={!canReveal}
-                    className={`px-2 sm:px-3 py-1 text-xs font-display uppercase tracking-wide rounded transition-colors flex-shrink-0 ${
-                      canReveal 
+                    disabled={!canReveal || isRevealing}
+                    className={`px-3 py-2 min-h-[36px] text-xs font-display uppercase tracking-wide rounded transition-colors flex-shrink-0 ${
+                      canReveal && !isRevealing
                         ? 'bg-primary/20 text-primary hover:bg-primary/30 cursor-pointer animate-pulse' 
                         : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
@@ -279,7 +294,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
         isOpen={!!selectedCard}
         onClose={() => setSelectedCard(null)}
         cardType={selectedCard?.type || null}
-        cardValue={selectedCard?.value || ''}
+        cardValue={selectedCard ? getCardValue(selectedCard.type) : ''}
       />
     </div>
   );

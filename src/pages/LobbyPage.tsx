@@ -122,7 +122,7 @@ const LobbyPage = () => {
           >
             <h2 className="font-display text-sm sm:text-lg text-muted-foreground mb-2">КОД ИГРЫ</h2>
             <div className="flex items-center justify-center gap-2 sm:gap-4 mb-4">
-              <span className="font-display text-2xl xs:text-3xl sm:text-5xl tracking-[0.15em] sm:tracking-[0.3em] text-primary text-glow break-all">
+              <span className="font-display text-3xl sm:text-5xl tracking-[0.1em] sm:tracking-[0.2em] text-primary text-glow">
                 {gameId}
               </span>
               <button

@@ -6,6 +6,7 @@ import { Skull, CheckCircle, AlertTriangle, Vote, Trophy, Clock, Users } from 'l
 const VotingPanel = memo(() => {
   const { gameState, currentPlayer, castVote, processVotingResults, nextPhase } = useGame();
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const [isVoting, setIsVoting] = useState(false); // Debounce state
 
   // Memoize computed values
   const { alivePlayers, hasVoted, allVoted, isDefensePhase, isVotingPhase, isResultsPhase } = useMemo(() => {
@@ -24,19 +25,30 @@ const VotingPanel = memo(() => {
   }, [gameState, currentPlayer]);
 
   // Get players available for voting (all or tied only in revote)
+  // Filter out disconnected/eliminated players from tied list
   const votablePlayersIds = useMemo(() => {
     if (!gameState) return new Set<string>();
     if (gameState.isRevote && gameState.tiedPlayers.length > 0) {
-      return new Set(gameState.tiedPlayers);
+      // Only include tied players who are still alive
+      const aliveTiedPlayers = gameState.tiedPlayers.filter(id => 
+        alivePlayers.some(p => p.id === id)
+      );
+      return new Set(aliveTiedPlayers);
     }
     return new Set(alivePlayers.map(p => p.id));
   }, [gameState, alivePlayers]);
 
-  const handleVote = useCallback(() => {
+  const handleVote = useCallback(async () => {
+    if (isVoting) return; // Prevent double-clicks
     if (selectedTarget && !hasVoted && currentPlayer) {
-      castVote(currentPlayer.id, selectedTarget);
+      setIsVoting(true);
+      try {
+        await castVote(currentPlayer.id, selectedTarget);
+      } finally {
+        setTimeout(() => setIsVoting(false), 1000);
+      }
     }
-  }, [selectedTarget, hasVoted, currentPlayer, castVote]);
+  }, [selectedTarget, hasVoted, currentPlayer, castVote, isVoting]);
 
   // Memoize sorted players for results
   const sortedPlayers = useMemo(() => 
@@ -315,10 +327,10 @@ const VotingPanel = memo(() => {
 
           <button
             onClick={handleVote}
-            disabled={!selectedTarget}
-            className={`bunker-button-danger w-full ${!selectedTarget ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!selectedTarget || isVoting}
+            className={`bunker-button-danger w-full ${!selectedTarget || isVoting ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
-            ПРОГОЛОСОВАТЬ
+            {isVoting ? 'ГОЛОСУЕМ...' : 'ПРОГОЛОСОВАТЬ'}
           </button>
           
           {/* Show current votes - open voting */}
@@ -355,16 +367,14 @@ const VotingPanel = memo(() => {
         </div>
       )}
 
-      {/* Host controls after all votes */}
-      {currentPlayer.isHost && allVoted && isVotingPhase && (
+      {/* Auto-show results notification when all voted */}
+      {allVoted && isVotingPhase && (
         <div className="mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg bg-secondary/10 border border-secondary/30">
-          <div className="flex items-center gap-2 mb-2 sm:mb-3">
+          <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
             <span className="font-display text-secondary text-sm sm:text-base">ВСЕ ПРОГОЛОСОВАЛИ</span>
           </div>
-          <button onClick={nextPhase} className="bunker-button w-full">
-            Показать результаты
-          </button>
+          <p className="text-xs text-muted-foreground mt-2">Результаты появятся через 2 секунды...</p>
         </div>
       )}
     </div>

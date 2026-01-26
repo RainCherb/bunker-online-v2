@@ -178,6 +178,20 @@ export function useGameDatabase() {
 
     const playerId = userId; // Use auth.uid() as player ID for RLS
     
+    // Check if player already exists in this game (rejoin scenario)
+    const { data: existingPlayer } = await supabase
+      .from('players')
+      .select('id, game_id')
+      .eq('id', playerId)
+      .eq('game_id', validatedGameId)
+      .single();
+
+    if (existingPlayer) {
+      // Player already in this game - allow rejoin
+      console.log('[JoinGame] Player already in game, allowing rejoin');
+      return { playerId };
+    }
+    
     // First, create the player so we can access the game via RLS
     const characteristics = generateRandomCharacteristics();
 
@@ -196,7 +210,12 @@ export function useGameDatabase() {
       });
 
     if (playerError) {
-      if (import.meta.env.DEV) {
+      // Check if it's a unique constraint error (player exists in another game)
+      if (playerError.code === '23505') {
+        if (import.meta.env.DEV) {
+          console.error('Player already exists in another game');
+        }
+      } else if (import.meta.env.DEV) {
         console.error('Error joining game:', playerError);
       }
       return null;

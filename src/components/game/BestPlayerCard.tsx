@@ -42,16 +42,16 @@ const BestPlayerCard = ({ player, isVisible, onClose }: BestPlayerCardProps) => 
             <div className="absolute inset-0 bg-gradient-to-br from-amber-500/30 via-yellow-600/20 to-orange-500/30 rounded-2xl blur-xl animate-pulse" />
             
             {/* Card content */}
-            <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl border-2 border-amber-500/50 p-6 shadow-2xl">
-              {/* Crown icon */}
+            <div className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl border-2 border-amber-500/50 p-6 pt-10 shadow-2xl">
+              {/* Crown icon - centered at top */}
               <motion.div
-                initial={{ y: -20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5, type: 'spring' }}
-                className="absolute -top-8 left-1/2 transform -translate-x-1/2"
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+                className="flex justify-center mb-4"
               >
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center shadow-lg shadow-amber-500/50">
-                  <Crown className="w-10 h-10 text-zinc-900" />
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center shadow-lg shadow-amber-500/50">
+                  <Crown className="w-12 h-12 text-zinc-900" />
                 </div>
               </motion.div>
 
@@ -60,14 +60,11 @@ const BestPlayerCard = ({ player, isVisible, onClose }: BestPlayerCardProps) => 
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
-                className="text-center mt-6 mb-6"
+                className="text-center mb-6"
               >
                 <h2 className="font-display text-2xl text-amber-400 tracking-wider">
                   ЛУЧШИЙ ИГРОК
                 </h2>
-                <p className="text-xs text-amber-500/70 mt-1">
-                  Самый популярный профиль матча
-                </p>
               </motion.div>
 
               {/* Star decorations */}

@@ -13,11 +13,11 @@ const GameOverScreen = () => {
   const [bestPlayer, setBestPlayer] = useState<Player | null>(null);
   const [showBestPlayer, setShowBestPlayer] = useState(false);
 
+  // Fetch best player data immediately on mount
   useEffect(() => {
     if (!gameState) return;
 
-    // Fetch profile view stats after 3 seconds
-    const timer = setTimeout(async () => {
+    const fetchBestPlayer = async () => {
       try {
         const { data: views, error } = await supabase
           .from('profile_views')
@@ -28,7 +28,6 @@ const GameOverScreen = () => {
           // No views recorded, pick random player
           const randomIndex = Math.floor(Math.random() * gameState.players.length);
           setBestPlayer(gameState.players[randomIndex]);
-          setShowBestPlayer(true);
           return;
         }
 
@@ -52,19 +51,37 @@ const GameOverScreen = () => {
 
         if (selectedPlayer) {
           setBestPlayer(selectedPlayer);
-          setShowBestPlayer(true);
+        } else {
+          // Fallback to random player
+          const randomIndex = Math.floor(Math.random() * gameState.players.length);
+          setBestPlayer(gameState.players[randomIndex]);
         }
       } catch (err) {
         console.error('Error fetching profile views:', err);
         // Fallback to random player
         const randomIndex = Math.floor(Math.random() * gameState.players.length);
         setBestPlayer(gameState.players[randomIndex]);
-        setShowBestPlayer(true);
       }
+    };
+
+    fetchBestPlayer();
+  }, [gameState]);
+
+  // Show best player card after exactly 3 seconds, regardless of data loading
+  useEffect(() => {
+    if (!gameState) return;
+
+    const timer = setTimeout(() => {
+      // If no best player yet, set a random one
+      if (!bestPlayer && gameState.players.length > 0) {
+        const randomIndex = Math.floor(Math.random() * gameState.players.length);
+        setBestPlayer(gameState.players[randomIndex]);
+      }
+      setShowBestPlayer(true);
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [gameState]);
+  }, [gameState, bestPlayer]);
 
   if (!gameState) return null;
 
