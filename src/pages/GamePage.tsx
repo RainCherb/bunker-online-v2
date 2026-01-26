@@ -171,6 +171,19 @@ const GamePage = () => {
   // Auto-show voting results after 2 seconds when all players have voted
   const autoResultsTriggeredRef = useRef(false);
   const autoResultsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  
+  // Cleanup on unmount only
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (autoResultsTimerRef.current) {
+        clearTimeout(autoResultsTimerRef.current);
+        autoResultsTimerRef.current = null;
+      }
+    };
+  }, []);
   
   // Reset the auto-results flag when phase changes away from voting
   useEffect(() => {
@@ -183,17 +196,14 @@ const GamePage = () => {
     }
   }, [gameState?.phase]);
   
-  // Separate effect for triggering auto-results - only depends on voting state, not full gameState
-  const isVotingPhaseRef = useRef(false);
+  // Track if all players have voted (use ref to avoid re-triggering)
   const allVotedRef = useRef(false);
-  const isHostRef = useRef(false);
-  
-  // Update refs when values change
-  isVotingPhaseRef.current = gameState?.phase === 'voting';
-  isHostRef.current = currentPlayer?.isHost || false;
   
   useEffect(() => {
-    if (!gameState || gameState.phase !== 'voting') return;
+    if (!gameState || gameState.phase !== 'voting') {
+      allVotedRef.current = false;
+      return;
+    }
     
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const allVoted = alivePlayers.every(p => p.hasVoted);
@@ -205,10 +215,16 @@ const GamePage = () => {
       autoResultsTriggeredRef.current = true;
       console.log('[AutoResults] All players voted, showing results in 2 seconds...');
       
-      // Use a local variable to capture nextPhase
+      // Capture nextPhase to avoid stale closure
       const triggerNextPhase = nextPhase;
       
       autoResultsTimerRef.current = setTimeout(async () => {
+        // Check if component is still mounted
+        if (!isMountedRef.current) {
+          console.log('[AutoResults] Component unmounted, skipping nextPhase');
+          return;
+        }
+        
         console.log('[AutoResults] Timer fired, calling nextPhase...');
         try {
           await triggerNextPhase();
@@ -219,8 +235,6 @@ const GamePage = () => {
         autoResultsTimerRef.current = null;
       }, 2000);
     }
-    
-    // NO cleanup here - don't clear the timer on re-renders!
   }, [gameState?.players, gameState?.phase, currentPlayer?.isHost, nextPhase]);
 
   // Handle leave game
