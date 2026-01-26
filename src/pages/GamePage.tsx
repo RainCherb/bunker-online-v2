@@ -184,16 +184,24 @@ const GamePage = () => {
   }, [gameState?.phase]);
   
   useEffect(() => {
-    if (!gameState || gameState.phase !== 'voting' || !currentPlayer?.isHost) return;
+    if (!gameState || gameState.phase !== 'voting') return;
     
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const allVoted = alivePlayers.every(p => p.hasVoted);
     
-    if (allVoted && !autoResultsTriggeredRef.current) {
+    console.log('[AutoResults] Check - phase:', gameState.phase, 'allVoted:', allVoted, 'isHost:', currentPlayer?.isHost, 'triggered:', autoResultsTriggeredRef.current);
+    
+    if (allVoted && !autoResultsTriggeredRef.current && currentPlayer?.isHost) {
       autoResultsTriggeredRef.current = true;
       console.log('[AutoResults] All players voted, showing results in 2 seconds...');
-      autoResultsTimerRef.current = setTimeout(() => {
-        nextPhase();
+      autoResultsTimerRef.current = setTimeout(async () => {
+        console.log('[AutoResults] Timer fired, calling nextPhase...');
+        try {
+          await nextPhase();
+          console.log('[AutoResults] nextPhase completed');
+        } catch (error) {
+          console.error('[AutoResults] nextPhase error:', error);
+        }
         autoResultsTimerRef.current = null;
       }, 2000);
     }

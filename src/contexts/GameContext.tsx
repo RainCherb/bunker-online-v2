@@ -475,12 +475,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   // Move to next phase
   const nextPhase = useCallback(async () => {
-    if (!gameState) return;
+    if (!gameState) {
+      console.log('[nextPhase] No gameState, returning');
+      return;
+    }
 
+    console.log('[nextPhase] Current phase:', gameState.phase);
+    
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     
     // Check if game should end
     if (alivePlayers.length <= gameState.bunkerSlots) {
+      console.log('[nextPhase] Game over condition met');
       await db.updateGamePhase(gameState.id, { phase: 'gameover', phase_ends_at: null });
       return;
     }
@@ -519,7 +525,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await db.updateGamePhase(gameState.id, { phase: 'voting', phase_ends_at: null });
         break;
       case 'voting':
+        console.log('[nextPhase] Voting -> Results');
         await db.updateGamePhase(gameState.id, { phase: 'results', phase_ends_at: null });
+        console.log('[nextPhase] Phase updated to results');
         break;
       case 'results':
         await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
