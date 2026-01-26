@@ -92,7 +92,9 @@ const AdminCardsPage = () => {
 
     try {
       // Save to localStorage first (always works)
-      localStorage.setItem('bunker_admin_cards', JSON.stringify(categories));
+      const dataToSave = JSON.stringify(categories);
+      localStorage.setItem('bunker_admin_cards', dataToSave);
+      console.log('[AdminCards] Saved to localStorage:', categories.map(c => `${c.key}: ${c.cards.length} cards`));
       
       // Try to save to Supabase
       try {
@@ -150,6 +152,11 @@ const AdminCardsPage = () => {
                 <h1 className="text-2xl font-bold text-black">Редактор карт</h1>
                 <p className="text-sm text-gray-500">Администрирование игровых карточек</p>
               </div>
+            </div>
+            <div className="ml-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-xs text-amber-700">
+                ⚠️ Карты сохраняются локально в этом браузере. Хост должен создать игру в том же браузере.
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <button

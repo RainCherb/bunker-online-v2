@@ -53,11 +53,23 @@ const GamePage = () => {
   const isDiscussionPhase = gameState?.phase === 'discussion';
   const playerRevealed = turnHasRevealed;
 
-  // Detect new card reveals
+  // Detect new card reveals - works for ALL players via realtime updates
   useEffect(() => {
     if (!gameState?.players) return;
+    
+    // Don't detect reveals if animation is already showing
+    if (revealAnimation) return;
 
     const prevPlayers = prevPlayersRef.current;
+    
+    // Skip if this is the first load (no previous players to compare)
+    if (prevPlayers.length === 0) {
+      prevPlayersRef.current = gameState.players.map(p => ({
+        ...p,
+        revealedCharacteristics: [...p.revealedCharacteristics]
+      }));
+      return;
+    }
     
     // Compare revealed characteristics
     for (const player of gameState.players) {
@@ -68,22 +80,29 @@ const GamePage = () => {
           if (!prevPlayer.revealedCharacteristics.includes(charKey)) {
             // New reveal detected!
             const typedKey = charKey as keyof Characteristics;
+            console.log('[Animation] New reveal detected:', player.name, typedKey);
             setRevealAnimation({
               playerName: player.name,
               characteristicKey: typedKey,
               characteristicValue: player.characteristics[typedKey] || ''
             });
-            break;
+            // Update prevPlayersRef immediately to prevent re-triggering
+            prevPlayersRef.current = gameState.players.map(p => ({
+              ...p,
+              revealedCharacteristics: [...p.revealedCharacteristics]
+            }));
+            return; // Exit after finding one new reveal
           }
         }
       }
     }
 
+    // Update prevPlayersRef for next comparison
     prevPlayersRef.current = gameState.players.map(p => ({
       ...p,
       revealedCharacteristics: [...p.revealedCharacteristics]
     }));
-  }, [gameState?.players]);
+  }, [gameState?.players, revealAnimation]);
 
   // Handle turn timeout - only host executes this
   const handleTurnTimeout = useCallback(async () => {
@@ -151,6 +170,19 @@ const GamePage = () => {
 
   // Auto-show voting results after 2 seconds when all players have voted
   const autoResultsTriggeredRef = useRef(false);
+  const autoResultsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Reset the auto-results flag when phase changes away from voting
+  useEffect(() => {
+    if (gameState?.phase !== 'voting') {
+      autoResultsTriggeredRef.current = false;
+      if (autoResultsTimerRef.current) {
+        clearTimeout(autoResultsTimerRef.current);
+        autoResultsTimerRef.current = null;
+      }
+    }
+  }, [gameState?.phase]);
+  
   useEffect(() => {
     if (!gameState || gameState.phase !== 'voting' || !currentPlayer?.isHost) return;
     
@@ -160,16 +192,17 @@ const GamePage = () => {
     if (allVoted && !autoResultsTriggeredRef.current) {
       autoResultsTriggeredRef.current = true;
       console.log('[AutoResults] All players voted, showing results in 2 seconds...');
-      const timer = setTimeout(() => {
+      autoResultsTimerRef.current = setTimeout(() => {
         nextPhase();
+        autoResultsTimerRef.current = null;
       }, 2000);
-      return () => clearTimeout(timer);
     }
     
-    // Reset flag when not in voting phase or not all voted
-    if (!allVoted) {
-      autoResultsTriggeredRef.current = false;
-    }
+    return () => {
+      if (autoResultsTimerRef.current) {
+        clearTimeout(autoResultsTimerRef.current);
+      }
+    };
   }, [gameState, currentPlayer?.isHost, nextPhase]);
 
   // Handle leave game
