@@ -1,17 +1,19 @@
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Trophy, Skull, Home } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Shield, Trophy, Skull, Home, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Player } from '@/types/game';
 import BestPlayerCard from './BestPlayerCard';
 
 const GameOverScreen = () => {
-  const { gameState, clearSession } = useGame();
+  const { gameState, clearSession, restartGame, currentPlayer } = useGame();
   const navigate = useNavigate();
   const [bestPlayer, setBestPlayer] = useState<Player | null>(null);
   const [showBestPlayer, setShowBestPlayer] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const timerStartedRef = useRef(false);
 
   // Fetch best player data immediately on mount
   useEffect(() => {
@@ -65,23 +67,22 @@ const GameOverScreen = () => {
     };
 
     fetchBestPlayer();
-  }, [gameState]);
+  }, [gameState?.id]); // Only depend on gameState.id, not the whole object
 
-  // Show best player card after exactly 3 seconds, regardless of data loading
+  // Show best player card after exactly 3 seconds - only start timer ONCE
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || timerStartedRef.current) return;
+    
+    timerStartedRef.current = true;
+    console.log('[BestPlayer] Starting 3 second timer');
 
     const timer = setTimeout(() => {
-      // If no best player yet, set a random one
-      if (!bestPlayer && gameState.players.length > 0) {
-        const randomIndex = Math.floor(Math.random() * gameState.players.length);
-        setBestPlayer(gameState.players[randomIndex]);
-      }
+      console.log('[BestPlayer] Timer fired, showing card');
       setShowBestPlayer(true);
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [gameState, bestPlayer]);
+  }, [gameState]);
 
   if (!gameState) return null;
 
@@ -95,6 +96,22 @@ const GameOverScreen = () => {
 
   const handleCloseBestPlayer = () => {
     setShowBestPlayer(false);
+  };
+
+  const handlePlayAgain = async () => {
+    if (isRestarting || !currentPlayer?.isHost) return;
+    setIsRestarting(true);
+    try {
+      const success = await restartGame();
+      if (!success) {
+        console.error('Failed to restart game');
+        setIsRestarting(false);
+      }
+      // If successful, GameContext will update gameState and navigate us
+    } catch (error) {
+      console.error('Error restarting game:', error);
+      setIsRestarting(false);
+    }
   };
 
   return (
@@ -216,11 +233,25 @@ const GameOverScreen = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2 }}
-          className="text-center flex gap-4 justify-center"
+          className="text-center flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
+          {currentPlayer?.isHost && (
+            <button
+              onClick={handlePlayAgain}
+              disabled={isRestarting}
+              className="bunker-button inline-flex items-center gap-3 bg-primary hover:bg-primary/90"
+            >
+              {isRestarting ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <RotateCcw className="w-5 h-5" />
+              )}
+              ЕЩЕ РАЗ?
+            </button>
+          )}
           <button
             onClick={handleGoHome}
-            className="bunker-button inline-flex items-center gap-3"
+            className="bunker-button-secondary inline-flex items-center gap-3"
           >
             <Home className="w-5 h-5" />
             В ГЛАВНОЕ МЕНЮ

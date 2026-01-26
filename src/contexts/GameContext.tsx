@@ -13,6 +13,7 @@ interface GameContextType {
   joinGame: (gameId: string, playerName: string) => Promise<boolean>;
   loadGame: (gameId: string, playerId: string) => Promise<boolean>;
   startGame: () => Promise<void>;
+  restartGame: () => Promise<boolean>;
   revealCharacteristic: (playerId: string, characteristic: keyof Characteristics) => Promise<boolean>;
   nextPhase: () => Promise<void>;
   nextPlayerTurn: () => Promise<void>;
@@ -640,6 +641,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [gameState, db]);
 
+  // Restart game with same players but new characteristics
+  const restartGame = useCallback(async (): Promise<boolean> => {
+    if (!gameState || !currentPlayer?.isHost) return false;
+    
+    console.log('[RestartGame] Starting restart for game:', gameState.id);
+    
+    try {
+      const success = await db.restartGame(gameState.id);
+      if (success) {
+        console.log('[RestartGame] Game restarted successfully');
+        // Fetch updated state
+        const result = await fetchGameState(gameState.id);
+        if (result) {
+          setGameState(result.state);
+          setPhaseEndsAt(result.phaseEndsAt);
+          setTurnHasRevealed(result.turnHasRevealed);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[RestartGame] Error:', error);
+      return false;
+    }
+  }, [gameState, currentPlayer?.isHost, db, fetchGameState]);
+
   // Set current player ID (no longer saves to localStorage - uses auth)
   const setCurrentPlayerId = useCallback((playerId: string) => {
     setCurrentPlayerIdState(playerId);
@@ -704,6 +731,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       joinGame,
       loadGame,
       startGame,
+      restartGame,
       revealCharacteristic,
       nextPhase,
       nextPlayerTurn,

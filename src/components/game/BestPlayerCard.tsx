@@ -35,8 +35,8 @@ const BestPlayerCard = ({ player, isVisible, onClose }: BestPlayerCardProps) => 
               damping: 20,
               delay: 0.2 
             }}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm"
+            onClick={onClose}
+            className="relative w-full max-w-sm cursor-pointer"
           >
             {/* Glowing background effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-amber-500/30 via-yellow-600/20 to-orange-500/30 rounded-2xl blur-xl animate-pulse" />
@@ -65,6 +65,7 @@ const BestPlayerCard = ({ player, isVisible, onClose }: BestPlayerCardProps) => 
                 <h2 className="font-display text-2xl text-amber-400 tracking-wider">
                   ЛУЧШИЙ ИГРОК
                 </h2>
+                <p className="text-sm text-amber-500/70 mt-1">матча</p>
               </motion.div>
 
               {/* Star decorations */}

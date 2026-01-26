@@ -436,11 +436,97 @@ export function useGameDatabase() {
     return true;
   }, []);
 
+  // Restart game with same players but new characteristics
+  const restartGame = useCallback(async (gameId: string): Promise<boolean> => {
+    console.log('[DB] Restarting game:', gameId);
+    
+    // Get all players in this game
+    const { data: players, error: playersError } = await supabase
+      .from('players')
+      .select('id')
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: true });
+
+    if (playersError || !players || players.length < 2) {
+      console.error('[DB] Error fetching players for restart:', playersError);
+      return false;
+    }
+
+    const bunkerSlots = calculateBunkerSlots(players.length);
+
+    // Load custom cards from Supabase
+    await loadCustomCardsFromSupabase();
+
+    // Generate new unique characteristics for all players
+    const allCharacteristics = generateUniqueCharacteristicsForPlayers(players.length);
+
+    // Generate new bunker and catastrophe
+    const bunker = bunkerToDBFormat(getRandomBunker());
+    const catastrophe = catastropheToDBFormat(getRandomCatastrophe());
+
+    // Reset each player with new characteristics
+    for (let i = 0; i < players.length; i++) {
+      const { error: playerUpdateError } = await supabase
+        .from('players')
+        .update({
+          characteristics: allCharacteristics[i] as any,
+          revealed_characteristics: [],
+          is_eliminated: false,
+          votes_against: 0,
+          has_voted: false,
+        })
+        .eq('id', players[i].id);
+
+      if (playerUpdateError) {
+        console.error('[DB] Error updating player for restart:', playerUpdateError);
+        return false;
+      }
+    }
+
+    // Reset game state to introduction
+    const { error: gameError } = await supabase
+      .from('games')
+      .update({
+        phase: 'introduction',
+        current_round: 1,
+        current_player_index: 0,
+        bunker_slots: bunkerSlots,
+        bunker_name: bunker.name,
+        bunker_description: bunker.description,
+        bunker_supplies: bunker.supplies,
+        catastrophe_name: catastrophe.name,
+        catastrophe_description: catastrophe.description,
+        catastrophe_survival_time: catastrophe.survivalTime,
+        votes: {},
+        voting_phase: 'none',
+        phase_ends_at: null,
+        turn_has_revealed: false,
+        tied_players: [],
+        is_revote: false,
+      })
+      .eq('id', gameId);
+
+    if (gameError) {
+      console.error('[DB] Error resetting game state:', gameError);
+      return false;
+    }
+
+    // Clear profile views for this game
+    await supabase
+      .from('profile_views')
+      .delete()
+      .eq('game_id', gameId);
+
+    console.log('[DB] Game restarted successfully');
+    return true;
+  }, []);
+
   return {
     createGame,
     joinGame,
     fetchGameState,
     startGame,
+    restartGame,
     revealCharacteristic,
     updateGamePhase,
     castVote,
