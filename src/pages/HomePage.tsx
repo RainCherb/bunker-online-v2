@@ -36,11 +36,16 @@ const HomePage = () => {
       return;
     }
     setError('');
-    const gameId = await createGame(playerName.trim());
-    if (gameId) {
-      navigate(`/lobby/${gameId}`);
-    } else {
-      setError('Ошибка при создании игры');
+    try {
+      const gameId = await createGame(playerName.trim());
+      if (gameId) {
+        navigate(`/lobby/${gameId}`);
+      } else {
+        setError('Ошибка при создании игры. Проверьте консоль (F12)');
+      }
+    } catch (e: any) {
+      console.error('[HomePage] Create game error:', e);
+      setError(`Ошибка: ${e?.message || 'Неизвестная ошибка'}`);
     }
   };
 

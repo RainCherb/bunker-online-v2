@@ -206,30 +206,42 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const createGame = useCallback(async (hostName: string): Promise<string | null> => {
     setIsLoading(true);
     
-    // Ensure user is authenticated (anonymous auth)
-    const user = await ensureAuthenticated();
-    if (!user) {
-      console.error('[CreateGame] Failed to authenticate');
+    try {
+      // Ensure user is authenticated (anonymous auth)
+      console.log('[CreateGame] Starting authentication...');
+      const user = await ensureAuthenticated();
+      if (!user) {
+        console.error('[CreateGame] Failed to authenticate - no user returned');
+        setIsLoading(false);
+        return null;
+      }
+      console.log('[CreateGame] Authenticated as:', user.id);
+      
+      console.log('[CreateGame] Creating game for:', hostName);
+      const result = await db.createGame(hostName, user.id);
+      
+      if (result) {
+        console.log('[CreateGame] Game created:', result.gameId);
+        saveSession(result.gameId);
+        setCurrentPlayerIdState(result.playerId);
+        const fetchResult = await fetchGameState(result.gameId);
+        if (fetchResult) {
+          setGameState(fetchResult.state);
+          setPhaseEndsAt(fetchResult.phaseEndsAt);
+          setTurnHasRevealed(fetchResult.turnHasRevealed);
+        }
+        setupRealtimeSubscription(result.gameId);
+      } else {
+        console.error('[CreateGame] db.createGame returned null');
+      }
+      
+      setIsLoading(false);
+      return result?.gameId || null;
+    } catch (error) {
+      console.error('[CreateGame] Exception:', error);
       setIsLoading(false);
       return null;
     }
-    
-    const result = await db.createGame(hostName, user.id);
-    
-    if (result) {
-      saveSession(result.gameId);
-      setCurrentPlayerIdState(result.playerId);
-      const fetchResult = await fetchGameState(result.gameId);
-      if (fetchResult) {
-        setGameState(fetchResult.state);
-        setPhaseEndsAt(fetchResult.phaseEndsAt);
-        setTurnHasRevealed(fetchResult.turnHasRevealed);
-      }
-      setupRealtimeSubscription(result.gameId);
-    }
-    
-    setIsLoading(false);
-    return result?.gameId || null;
   }, [db, saveSession, fetchGameState, setupRealtimeSubscription, ensureAuthenticated]);
 
   // Join an existing game

@@ -100,6 +100,7 @@ export function useGameDatabase() {
     const characteristics = generateRandomCharacteristics();
 
     // Insert game first
+    console.log('[DB] Inserting game:', gameId);
     const { error: gameError } = await supabase
       .from('games')
       .insert({
@@ -123,13 +124,13 @@ export function useGameDatabase() {
       });
 
     if (gameError) {
-      if (import.meta.env.DEV) {
-        console.error('Error creating game:', gameError);
-      }
+      console.error('[DB] Error creating game:', gameError.message, gameError.code);
       return null;
     }
+    console.log('[DB] Game created successfully');
 
     // Insert host player with auth.uid() as ID
+    console.log('[DB] Inserting player:', playerId);
     const { error: playerError } = await supabase
       .from('players')
       .insert({
@@ -145,13 +146,12 @@ export function useGameDatabase() {
       });
 
     if (playerError) {
-      if (import.meta.env.DEV) {
-        console.error('Error creating player:', playerError);
-      }
+      console.error('[DB] Error creating player:', playerError.message, playerError.code);
       // Try to clean up the game
       await supabase.from('games').delete().eq('id', gameId);
       return null;
     }
+    console.log('[DB] Player created successfully');
 
     return { gameId, playerId };
   }, []);
