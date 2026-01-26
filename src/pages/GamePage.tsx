@@ -183,21 +183,35 @@ const GamePage = () => {
     }
   }, [gameState?.phase]);
   
+  // Separate effect for triggering auto-results - only depends on voting state, not full gameState
+  const isVotingPhaseRef = useRef(false);
+  const allVotedRef = useRef(false);
+  const isHostRef = useRef(false);
+  
+  // Update refs when values change
+  isVotingPhaseRef.current = gameState?.phase === 'voting';
+  isHostRef.current = currentPlayer?.isHost || false;
+  
   useEffect(() => {
     if (!gameState || gameState.phase !== 'voting') return;
     
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     const allVoted = alivePlayers.every(p => p.hasVoted);
+    const wasAllVoted = allVotedRef.current;
+    allVotedRef.current = allVoted;
     
-    console.log('[AutoResults] Check - phase:', gameState.phase, 'allVoted:', allVoted, 'isHost:', currentPlayer?.isHost, 'triggered:', autoResultsTriggeredRef.current);
-    
-    if (allVoted && !autoResultsTriggeredRef.current && currentPlayer?.isHost) {
+    // Only trigger once when allVoted changes from false to true
+    if (allVoted && !wasAllVoted && !autoResultsTriggeredRef.current && currentPlayer?.isHost) {
       autoResultsTriggeredRef.current = true;
       console.log('[AutoResults] All players voted, showing results in 2 seconds...');
+      
+      // Use a local variable to capture nextPhase
+      const triggerNextPhase = nextPhase;
+      
       autoResultsTimerRef.current = setTimeout(async () => {
         console.log('[AutoResults] Timer fired, calling nextPhase...');
         try {
-          await nextPhase();
+          await triggerNextPhase();
           console.log('[AutoResults] nextPhase completed');
         } catch (error) {
           console.error('[AutoResults] nextPhase error:', error);
@@ -206,12 +220,8 @@ const GamePage = () => {
       }, 2000);
     }
     
-    return () => {
-      if (autoResultsTimerRef.current) {
-        clearTimeout(autoResultsTimerRef.current);
-      }
-    };
-  }, [gameState, currentPlayer?.isHost, nextPhase]);
+    // NO cleanup here - don't clear the timer on re-renders!
+  }, [gameState?.players, gameState?.phase, currentPlayer?.isHost, nextPhase]);
 
   // Handle leave game
   const handleLeaveGame = () => {
