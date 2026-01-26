@@ -1,6 +1,7 @@
 import { Bunker, Catastrophe, Characteristics } from '@/types/game';
+import { supabase } from '@/integrations/supabase/client';
 
-// Helper to load custom cards from localStorage
+// Helper to load custom cards
 interface CardCategory {
   name: string;
   key: string;
@@ -8,9 +9,60 @@ interface CardCategory {
   description: string;
 }
 
-function getCustomCards(): Record<string, string[]> | null {
+// Cached cards from Supabase (loaded once per session)
+let cachedSupabaseCards: Record<string, string[]> | null = null;
+let supabaseCardsLoaded = false;
+
+// Load custom cards from Supabase (call this before generating characteristics)
+export async function loadCustomCardsFromSupabase(): Promise<Record<string, string[]> | null> {
   try {
-    // Check if localStorage is available (Safari private mode throws error)
+    console.log('[CustomCards] Loading cards from Supabase...');
+    const { data, error } = await supabase
+      .from('game_cards')
+      .select('cards_data')
+      .eq('id', 'main')
+      .single();
+    
+    if (error) {
+      console.warn('[CustomCards] Supabase error:', error.message);
+      return null;
+    }
+    
+    if (data?.cards_data && Array.isArray(data.cards_data) && data.cards_data.length > 0) {
+      const categories = data.cards_data as CardCategory[];
+      const result: Record<string, string[]> = {};
+      categories.forEach(cat => {
+        if (cat.key && cat.cards && cat.cards.length > 0) {
+          result[cat.key] = cat.cards;
+        }
+      });
+      
+      if (Object.keys(result).length > 0) {
+        console.log('[CustomCards] Loaded from Supabase:', Object.keys(result).map(k => `${k}: ${result[k].length}`));
+        cachedSupabaseCards = result;
+        supabaseCardsLoaded = true;
+        return result;
+      }
+    }
+    
+    console.log('[CustomCards] No custom cards in Supabase');
+  } catch (e) {
+    console.warn('[CustomCards] Failed to load from Supabase:', e);
+  }
+  
+  supabaseCardsLoaded = true;
+  return null;
+}
+
+// Get custom cards (prioritize Supabase cache, then localStorage)
+function getCustomCards(): Record<string, string[]> | null {
+  // First check Supabase cache
+  if (cachedSupabaseCards) {
+    return cachedSupabaseCards;
+  }
+  
+  // Fallback to localStorage
+  try {
     if (typeof localStorage === 'undefined') return null;
     
     const saved = localStorage.getItem('bunker_admin_cards');
@@ -20,24 +72,22 @@ function getCustomCards(): Record<string, string[]> | null {
       categories.forEach(cat => {
         result[cat.key] = cat.cards;
       });
-      console.log('[CustomCards] Loaded custom cards from localStorage:', Object.keys(result));
+      console.log('[CustomCards] Loaded from localStorage:', Object.keys(result));
       return result;
     }
   } catch (e) {
-    // Handle Safari private mode and other localStorage errors
-    console.warn('[CustomCards] Failed to load custom cards:', e);
+    console.warn('[CustomCards] Failed to load from localStorage:', e);
   }
   return null;
 }
 
-// Get cards with localStorage override
+// Get cards with custom override
 function getCards(key: string, defaults: string[]): string[] {
   const custom = getCustomCards();
   if (custom && custom[key] && custom[key].length > 0) {
     console.log(`[CustomCards] Using custom ${key}: ${custom[key].length} cards`);
     return custom[key];
   }
-  console.log(`[CustomCards] Using default ${key}: ${defaults.length} cards`);
   return defaults;
 }
 

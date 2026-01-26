@@ -6,7 +6,8 @@ import {
   generateUniqueCharacteristicsForPlayers,
   getRandomBunker, 
   getRandomCatastrophe, 
-  calculateBunkerSlots 
+  calculateBunkerSlots,
+  loadCustomCardsFromSupabase
 } from '@/data/gameData';
 import { z } from 'zod';
 
@@ -302,6 +303,9 @@ export function useGameDatabase() {
     }
 
     const bunkerSlots = calculateBunkerSlots(players.length);
+
+    // Load custom cards from Supabase before generating characteristics
+    await loadCustomCardsFromSupabase();
 
     // Generate unique characteristics for all players
     const allCharacteristics = generateUniqueCharacteristicsForPlayers(players.length);

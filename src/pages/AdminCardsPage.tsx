@@ -25,7 +25,7 @@ const AdminCardsPage = () => {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Initialize cards from gameData
+  // Initialize cards - prioritize Supabase, then localStorage, then defaults
   useEffect(() => {
     const initialCategories: CardCategory[] = [
       { name: 'Профессии', key: 'professions', cards: [...PROFESSIONS], description: 'Профессии персонажей' },
@@ -37,18 +37,43 @@ const AdminCardsPage = () => {
       { name: 'Карты действий', key: 'actions', cards: [...ACTION_CARDS], description: 'Специальные карты действий' },
     ];
     
-    // Try to load saved cards from localStorage
-    const savedCards = localStorage.getItem('bunker_admin_cards');
-    if (savedCards) {
+    const loadCards = async () => {
+      // First try to load from Supabase (source of truth)
       try {
-        const parsed = JSON.parse(savedCards);
-        setCategories(parsed);
-      } catch {
-        setCategories(initialCategories);
+        const { data, error } = await supabase
+          .from('game_cards')
+          .select('cards_data')
+          .eq('id', 'main')
+          .single();
+        
+        if (!error && data?.cards_data && Array.isArray(data.cards_data) && data.cards_data.length > 0) {
+          console.log('[AdminCards] Loaded from Supabase');
+          setCategories(data.cards_data as CardCategory[]);
+          return;
+        }
+      } catch (e) {
+        console.warn('[AdminCards] Failed to load from Supabase:', e);
       }
-    } else {
+      
+      // Fallback to localStorage
+      const savedCards = localStorage.getItem('bunker_admin_cards');
+      if (savedCards) {
+        try {
+          const parsed = JSON.parse(savedCards);
+          console.log('[AdminCards] Loaded from localStorage');
+          setCategories(parsed);
+          return;
+        } catch {
+          // Ignore parse errors
+        }
+      }
+      
+      // Use defaults
+      console.log('[AdminCards] Using default cards');
       setCategories(initialCategories);
-    }
+    };
+    
+    loadCards();
   }, []);
 
   const toggleCategory = (key: string) => {
@@ -91,30 +116,28 @@ const AdminCardsPage = () => {
     setErrorMessage('');
 
     try {
-      // Save to localStorage first (always works)
+      // Save to localStorage as backup
       const dataToSave = JSON.stringify(categories);
       localStorage.setItem('bunker_admin_cards', dataToSave);
-      console.log('[AdminCards] Saved to localStorage:', categories.map(c => `${c.key}: ${c.cards.length} cards`));
       
-      // Try to save to Supabase
-      try {
-        const { error } = await supabase
-          .from('game_cards')
-          .upsert({ 
-            id: 'main', 
-            cards_data: categories,
-            updated_at: new Date().toISOString()
-          });
-        
-        if (error) {
-          console.warn('Supabase save failed:', error);
-          // Still show success since localStorage worked
-        }
-      } catch (e) {
-        console.warn('Supabase unavailable, saved to localStorage only');
+      // Save to Supabase (primary storage)
+      const { error } = await supabase
+        .from('game_cards')
+        .upsert({ 
+          id: 'main', 
+          cards_data: categories,
+          updated_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('[AdminCards] Supabase save failed:', error);
+        setErrorMessage('Сохранено локально. Ошибка синхронизации: ' + error.message);
+        setSaveStatus('error');
+      } else {
+        console.log('[AdminCards] Saved to Supabase:', categories.map(c => `${c.key}: ${c.cards.length}`));
+        setSaveStatus('success');
       }
-
-      setSaveStatus('success');
+      
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
       setSaveStatus('error');
@@ -124,7 +147,7 @@ const AdminCardsPage = () => {
     }
   };
 
-  const resetToDefaults = () => {
+  const resetToDefaults = async () => {
     if (confirm('Вы уверены? Все изменения будут потеряны.')) {
       const initialCategories: CardCategory[] = [
         { name: 'Профессии', key: 'professions', cards: [...PROFESSIONS], description: 'Профессии персонажей' },
@@ -137,6 +160,19 @@ const AdminCardsPage = () => {
       ];
       setCategories(initialCategories);
       localStorage.removeItem('bunker_admin_cards');
+      
+      // Also clear from Supabase
+      try {
+        await supabase
+          .from('game_cards')
+          .upsert({ 
+            id: 'main', 
+            cards_data: [],
+            updated_at: new Date().toISOString()
+          });
+      } catch (e) {
+        console.warn('[AdminCards] Failed to clear Supabase:', e);
+      }
     }
   };
 
@@ -153,9 +189,9 @@ const AdminCardsPage = () => {
                 <p className="text-sm text-gray-500">Администрирование игровых карточек</p>
               </div>
             </div>
-            <div className="ml-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-xs text-amber-700">
-                ⚠️ Карты сохраняются локально в этом браузере. Хост должен создать игру в том же браузере.
+            <div className="ml-4 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-xs text-green-700">
+                ✓ Карты синхронизируются через сервер. Изменения применятся ко всем новым играм.
               </p>
             </div>
             <div className="flex items-center gap-3">
