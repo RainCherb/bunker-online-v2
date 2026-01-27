@@ -1,8 +1,9 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
-import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check, Ban } from 'lucide-react';
+import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check, Ban, Zap } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
+import { getActionCardById } from '@/data/gameData';
 
 // Modal for showing full card details
 interface CardDetailModalProps {
@@ -14,6 +15,9 @@ interface CardDetailModalProps {
 
 const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailModalProps) => {
   if (!isOpen || !cardType) return null;
+  
+  const isActionCard = cardType === 'actionCard1' || cardType === 'actionCard2';
+  const colorClass = isActionCard ? 'red' : 'primary';
 
   return (
     <AnimatePresence>
@@ -31,14 +35,22 @@ const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailMod
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ type: 'spring', damping: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-card border-2 border-primary/50 rounded-xl p-6 max-w-md w-full shadow-2xl"
-            style={{ boxShadow: '0 0 40px hsl(var(--primary) / 0.3)' }}
+            className={`bg-card border-2 rounded-xl p-6 max-w-md w-full shadow-2xl ${
+              isActionCard ? 'border-red-500/50' : 'border-primary/50'
+            }`}
+            style={{ boxShadow: isActionCard ? '0 0 40px rgba(239, 68, 68, 0.3)' : '0 0 40px hsl(var(--primary) / 0.3)' }}
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Info className="w-5 h-5 text-primary" />
-                <h3 className="font-display text-lg text-primary uppercase tracking-wider">
+                {isActionCard ? (
+                  <Zap className="w-5 h-5 text-red-500" />
+                ) : (
+                  <Info className="w-5 h-5 text-primary" />
+                )}
+                <h3 className={`font-display text-lg uppercase tracking-wider ${
+                  isActionCard ? 'text-red-500' : 'text-primary'
+                }`}>
                   {CHARACTERISTIC_NAMES[cardType]}
                 </h3>
               </div>
@@ -51,10 +63,14 @@ const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailMod
             </div>
 
             {/* Divider */}
-            <div className="h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent mb-4" />
+            <div className={`h-px bg-gradient-to-r from-transparent to-transparent mb-4 ${
+              isActionCard ? 'via-red-500/50' : 'via-primary/50'
+            }`} />
 
             {/* Card Value */}
-            <div className="p-4 rounded-lg bg-primary/10 border border-primary/30">
+            <div className={`p-4 rounded-lg border ${
+              isActionCard ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'
+            }`}>
               <p className="text-lg text-foreground leading-relaxed whitespace-pre-wrap">
                 {cardValue}
               </p>
@@ -253,8 +269,34 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
   }, [gameState, player.id]);
 
   // Get current card value from player (avoids stale data)
+  // For action cards, resolve ID to full card description
   const getCardValue = useCallback((key: keyof Characteristics) => {
-    return player.characteristics[key] || '';
+    const value = player.characteristics[key] || '';
+    
+    // If it's an action card, resolve the ID to name + description
+    if (key === 'actionCard1' || key === 'actionCard2') {
+      const card = getActionCardById(value);
+      if (card) {
+        return `${card.name}\n\n${card.description}`;
+      }
+    }
+    
+    return value;
+  }, [player.characteristics]);
+  
+  // Get display value for the card list (short version)
+  const getDisplayValue = useCallback((key: keyof Characteristics) => {
+    const value = player.characteristics[key] || '';
+    
+    // If it's an action card, show just the name
+    if (key === 'actionCard1' || key === 'actionCard2') {
+      const card = getActionCardById(value);
+      if (card) {
+        return card.name;
+      }
+    }
+    
+    return value;
   }, [player.characteristics]);
 
   return (
@@ -358,41 +400,58 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
       <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 will-change-scroll scroll-touch">
         {CHARACTERISTICS_ORDER.map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
-          const value = player.characteristics[key];
+          const displayValue = getDisplayValue(key);
           const isRestricted = roundRestriction === key;
           const canReveal = isOwn && canRevealCharacteristic(player.id, key) && !isRestricted;
           const isAvailable = availableChars.includes(key) && !isRestricted;
+          const isActionCard = key === 'actionCard1' || key === 'actionCard2';
 
           return (
             <div
               key={key}
               className={`p-3 sm:p-4 rounded-lg border-2 transition-colors ${
-                isRevealed
-                  ? 'border-primary/50 bg-primary/10'
-                  : isAvailable && isMyTurn && !hasRevealed
-                    ? 'border-secondary/50 bg-secondary/10'
-                    : 'border-muted bg-muted/30'
+                isActionCard
+                  ? isRevealed
+                    ? 'border-red-500/50 bg-red-500/10'
+                    : isAvailable && isMyTurn && !hasRevealed
+                      ? 'border-red-400/50 bg-red-900/20'
+                      : 'border-red-900/30 bg-red-950/20'
+                  : isRevealed
+                    ? 'border-primary/50 bg-primary/10'
+                    : isAvailable && isMyTurn && !hasRevealed
+                      ? 'border-secondary/50 bg-secondary/10'
+                      : 'border-muted bg-muted/30'
               }`}
             >
               <div className="flex items-start justify-between gap-2 sm:gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1 sm:gap-2 mb-1">
-                    {isRevealed ? (
+                    {isActionCard ? (
+                      <Zap className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${
+                        isRevealed ? 'text-red-500' : 'text-red-400/60'
+                      }`} />
+                    ) : isRevealed ? (
                       <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
                     ) : (
                       <Lock className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    <span className="font-display text-xs sm:text-sm text-muted-foreground truncate">
+                    <span className={`font-display text-xs sm:text-sm truncate ${
+                      isActionCard ? 'text-red-400' : 'text-muted-foreground'
+                    }`}>
                       {CHARACTERISTIC_NAMES[key]}
                     </span>
                   </div>
                   {isRevealed || isOwn ? (
                     <button
                       onClick={() => handleCardClick(key)}
-                      className={`text-sm sm:text-base font-medium text-left w-full truncate hover:text-primary transition-colors ${isRevealed ? 'text-foreground' : 'text-muted-foreground'} ${isOwn ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
+                      className={`text-sm sm:text-base font-medium text-left w-full truncate hover:text-primary transition-colors ${
+                        isActionCard 
+                          ? isRevealed ? 'text-red-300' : 'text-red-400/70'
+                          : isRevealed ? 'text-foreground' : 'text-muted-foreground'
+                      } ${isOwn ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
                       title={isOwn ? 'Нажмите для подробностей' : undefined}
                     >
-                      {value}
+                      {displayValue}
                     </button>
                   ) : (
                     <p className="text-muted-foreground italic text-sm">Скрыто</p>
@@ -405,7 +464,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                     disabled={!canReveal || isRevealing}
                     className={`px-3 py-2 min-h-[36px] text-xs font-display uppercase tracking-wide rounded transition-colors flex-shrink-0 ${
                       canReveal && !isRevealing
-                        ? 'bg-primary/20 text-primary hover:bg-primary/30 cursor-pointer animate-pulse' 
+                        ? isActionCard
+                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 cursor-pointer animate-pulse'
+                          : 'bg-primary/20 text-primary hover:bg-primary/30 cursor-pointer animate-pulse' 
                         : isRestricted
                           ? 'bg-red-900/20 text-red-400 cursor-not-allowed'
                           : 'bg-muted text-muted-foreground cursor-not-allowed'

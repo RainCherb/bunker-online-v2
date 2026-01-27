@@ -1,8 +1,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback } from 'react';
-import { X, Eye, EyeOff, Crown, Skull, UserPlus, Copy, Check } from 'lucide-react';
+import { X, Eye, EyeOff, Crown, Skull, UserPlus, Copy, Check, Zap } from 'lucide-react';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER } from '@/types/game';
 import { useGame } from '@/contexts/GameContext';
+import { getActionCardById } from '@/data/gameData';
 
 interface PlayerDetailModalProps {
   player: Player | null;
@@ -96,31 +97,48 @@ const PlayerDetailModal = ({ player, onClose }: PlayerDetailModalProps) => {
             
             {CHARACTERISTICS_ORDER.map((key) => {
               const isRevealed = player.revealedCharacteristics.includes(key);
-              const value = player.characteristics[key];
+              const rawValue = player.characteristics[key];
+              const isActionCard = key === 'actionCard1' || key === 'actionCard2';
+              
+              // For action cards, resolve the ID to name + description
+              let displayValue = rawValue;
+              if (isActionCard && rawValue) {
+                const card = getActionCardById(rawValue);
+                if (card) {
+                  displayValue = `${card.name}\n${card.description}`;
+                }
+              }
               
               return (
                 <div
                   key={key}
                   className={`p-3 rounded-lg border ${
-                    isRevealed 
-                      ? 'bg-primary/10 border-primary/30' 
-                      : 'bg-muted/30 border-border'
+                    isActionCard
+                      ? isRevealed
+                        ? 'bg-red-500/10 border-red-500/30'
+                        : 'bg-red-500/5 border-red-500/20'
+                      : isRevealed 
+                        ? 'bg-primary/10 border-primary/30' 
+                        : 'bg-muted/30 border-border'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-display text-muted-foreground uppercase">
+                        {isActionCard && <Zap className="w-3 h-3 text-red-500" />}
+                        <span className={`text-xs font-display uppercase ${
+                          isActionCard ? 'text-red-500' : 'text-muted-foreground'
+                        }`}>
                           {CHARACTERISTIC_NAMES[key]}
                         </span>
                         {isRevealed ? (
-                          <Eye className="w-3 h-3 text-primary" />
+                          <Eye className={`w-3 h-3 ${isActionCard ? 'text-red-500' : 'text-primary'}`} />
                         ) : (
                           <EyeOff className="w-3 h-3 text-muted-foreground" />
                         )}
                       </div>
                       {isRevealed ? (
-                        <p className="text-sm text-foreground">{value}</p>
+                        <p className="text-sm text-foreground whitespace-pre-line">{displayValue}</p>
                       ) : (
                         <p className="text-sm text-muted-foreground italic">Не раскрыто</p>
                       )}

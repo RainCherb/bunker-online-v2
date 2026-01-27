@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PendingAction, Player } from '@/types/game';
 import { X, Skull, Shield, Target, Clock, Ban } from 'lucide-react';
 
@@ -37,16 +37,37 @@ const ActionCardAnimation = ({
   const [phase, setPhase] = useState<'cancel_window' | 'target_selection' | 'applying'>('cancel_window');
   const [isFlipped, setIsFlipped] = useState(false);
   const [showContent, setShowContent] = useState(false);
+  
+  // Track which pendingAction we've already animated
+  const animatedActionIdRef = useRef<string | null>(null);
+  const timeExpiredCalledRef = useRef(false);
 
-  // Calculate time remaining
+  // Reset state when pendingAction changes
   useEffect(() => {
     if (!pendingAction) {
       setTimeRemaining(4);
       setPhase('cancel_window');
       setIsFlipped(false);
       setShowContent(false);
+      animatedActionIdRef.current = null;
+      timeExpiredCalledRef.current = false;
       return;
     }
+    
+    // If this is a new action, reset animation state
+    const actionKey = `${pendingAction.playerId}-${pendingAction.cardId}`;
+    if (animatedActionIdRef.current !== actionKey) {
+      animatedActionIdRef.current = actionKey;
+      timeExpiredCalledRef.current = false;
+      setPhase('cancel_window');
+      setIsFlipped(false);
+      setShowContent(false);
+    }
+  }, [pendingAction]);
+
+  // Calculate time remaining
+  useEffect(() => {
+    if (!pendingAction) return;
 
     const expiresAt = new Date(pendingAction.expiresAt).getTime();
     
@@ -55,7 +76,8 @@ const ActionCardAnimation = ({
       const remaining = Math.max(0, (expiresAt - now) / 1000);
       setTimeRemaining(remaining);
       
-      if (remaining <= 0 && phase === 'cancel_window') {
+      if (remaining <= 0 && phase === 'cancel_window' && !timeExpiredCalledRef.current) {
+        timeExpiredCalledRef.current = true;
         // Cancel window expired
         if (pendingAction.isCancelled) {
           // Was cancelled - close animation
@@ -80,34 +102,34 @@ const ActionCardAnimation = ({
     return () => clearInterval(interval);
   }, [pendingAction, phase, isMyAction, onTimeExpired]);
 
-  // Card flip animation on show
+  // Card flip animation on show - only run once per action
   useEffect(() => {
-    if (pendingAction && phase === 'cancel_window') {
-      setIsFlipped(false);
-      setShowContent(false);
-      
-      // Light vibration when card appears
-      triggerHaptic(80);
-      
-      // Start flip after card appears
-      const flipTimer = setTimeout(() => {
-        setIsFlipped(true);
-        // Heavy vibration when card flips (action card!)
-        triggerHaptic([50, 100, 50]);
-      }, 400);
-      
-      // Show content after flip completes
-      const contentTimer = setTimeout(() => {
-        setShowContent(true);
-        triggerHaptic(40);
-      }, 900);
-      
-      return () => {
-        clearTimeout(flipTimer);
-        clearTimeout(contentTimer);
-      };
-    }
-  }, [pendingAction, phase]);
+    if (!pendingAction || phase !== 'cancel_window') return;
+    
+    // Only animate if not already flipped
+    if (isFlipped) return;
+    
+    // Light vibration when card appears
+    triggerHaptic(80);
+    
+    // Start flip after card appears
+    const flipTimer = setTimeout(() => {
+      setIsFlipped(true);
+      // Heavy vibration when card flips (action card!)
+      triggerHaptic([50, 100, 50]);
+    }, 400);
+    
+    // Show content after flip completes
+    const contentTimer = setTimeout(() => {
+      setShowContent(true);
+      triggerHaptic(40);
+    }, 900);
+    
+    return () => {
+      clearTimeout(flipTimer);
+      clearTimeout(contentTimer);
+    };
+  }, [pendingAction?.playerId, pendingAction?.cardId]); // Only depend on identity of action
 
   // Handle cancel button click
   const handleCancel = useCallback(() => {
@@ -123,17 +145,17 @@ const ActionCardAnimation = ({
     onSelectTarget(targetId);
   }, [onSelectTarget]);
 
-  if (!pendingAction) return null;
-
-  // Generate dark particles
-  const particles = [...Array(15)].map((_, i) => ({
+  // Generate dark particles - memoized to prevent regeneration
+  const particles = useMemo(() => [...Array(15)].map((_, i) => ({
     id: i,
     x: Math.random() * 100,
     y: Math.random() * 100,
     delay: Math.random() * 0.5,
     duration: 3 + Math.random() * 2,
     size: 3 + Math.random() * 6,
-  }));
+  })), []);
+
+  if (!pendingAction) return null;
 
   return (
     <AnimatePresence>

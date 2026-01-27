@@ -11,13 +11,13 @@ import GameOverScreen from '@/components/game/GameOverScreen';
 import GameTimer from '@/components/game/GameTimer';
 import PlayerDetailModal from '@/components/game/PlayerDetailModal';
 import CardRevealAnimation from '@/components/game/CardRevealAnimation';
-import ActionCardsPanel from '@/components/game/ActionCardsPanel';
 import ActionCardAnimation from '@/components/game/ActionCardAnimation';
 import { useServerTimer } from '@/hooks/useServerTimer';
 import { useActionCards } from '@/hooks/useActionCards';
 import { Player, Characteristics } from '@/types/game';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { getActionCardById } from '@/data/gameData';
 
 interface RevealInfo {
   playerName: string;
@@ -87,10 +87,20 @@ const GamePage = () => {
             // New reveal detected!
             const typedKey = charKey as keyof Characteristics;
             if (import.meta.env.DEV) console.log('[Animation] New reveal detected:', player.name, typedKey);
+            
+            // For action cards, resolve ID to name + description
+            let displayValue = player.characteristics[typedKey] || '';
+            if (typedKey === 'actionCard1' || typedKey === 'actionCard2') {
+              const card = getActionCardById(displayValue);
+              if (card) {
+                displayValue = `${card.name}\n\n${card.description}`;
+              }
+            }
+            
             setRevealAnimation({
               playerName: player.name,
               characteristicKey: typedKey,
-              characteristicValue: player.characteristics[typedKey] || ''
+              characteristicValue: displayValue
             });
             // Update prevPlayersRef immediately to prevent re-triggering
             prevPlayersRef.current = gameState.players.map(p => ({
@@ -599,20 +609,6 @@ const GamePage = () => {
             isMyAction={isMyPendingAction}
           />
         </main>
-        
-        {/* Action Cards Panel - shown at bottom */}
-        {currentPlayer && !currentPlayer.isEliminated && (
-          <ActionCardsPanel
-            actionCardIds={[
-              currentPlayer.characteristics.actionCard1,
-              currentPlayer.characteristics.actionCard2
-            ]}
-            usedCardIds={currentPlayer.usedActionCards || []}
-            canActivate={!pendingAction && !currentPlayer.isEliminated}
-            isVotingPhase={isActualVotingPhase}
-            onActivateCard={handleActivateActionCard}
-          />
-        )}
 
         {/* Mobile Game Info Button */}
         <div className="lg:hidden fixed bottom-4 left-4 z-40">
