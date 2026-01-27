@@ -20,10 +20,10 @@ export function useAuth() {
         
         if (session?.user) {
           setUser(session.user);
-          console.log('[Auth] Existing session found:', session.user.id);
+          if (import.meta.env.DEV) console.log('[Auth] Existing session found:', session.user.id);
         }
       } catch (error) {
-        console.error('[Auth] Error checking session:', error);
+        if (import.meta.env.DEV) console.error('[Auth] Error checking session:', error);
       } finally {
         setIsLoading(false);
         setIsInitialized(true);
@@ -35,7 +35,7 @@ export function useAuth() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[Auth] Auth state changed:', event);
+        if (import.meta.env.DEV) console.log('[Auth] Auth state changed:', event);
         setUser(session?.user ?? null);
         setIsLoading(false);
       }
@@ -49,23 +49,23 @@ export function useAuth() {
   // Sign in anonymously
   const signInAnonymously = useCallback(async (): Promise<User | null> => {
     try {
-      console.log('[Auth] Signing in anonymously...');
+      if (import.meta.env.DEV) console.log('[Auth] Signing in anonymously...');
       const { data, error } = await supabase.auth.signInAnonymously();
       
       if (error) {
-        console.error('[Auth] Anonymous sign-in error:', error);
+        if (import.meta.env.DEV) console.error('[Auth] Anonymous sign-in error:', error);
         return null;
       }
       
       if (data.user) {
-        console.log('[Auth] Anonymous sign-in successful:', data.user.id);
+        if (import.meta.env.DEV) console.log('[Auth] Anonymous sign-in successful:', data.user.id);
         setUser(data.user);
         return data.user;
       }
       
       return null;
     } catch (error) {
-      console.error('[Auth] Anonymous sign-in exception:', error);
+      if (import.meta.env.DEV) console.error('[Auth] Anonymous sign-in exception:', error);
       return null;
     }
   }, []);

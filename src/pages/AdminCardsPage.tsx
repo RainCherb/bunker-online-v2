@@ -47,12 +47,12 @@ const AdminCardsPage = () => {
           .single();
         
         if (!error && data?.cards_data && Array.isArray(data.cards_data) && data.cards_data.length > 0) {
-          console.log('[AdminCards] Loaded from Supabase');
+          if (import.meta.env.DEV) console.log('[AdminCards] Loaded from Supabase');
           setCategories(data.cards_data as CardCategory[]);
           return;
         }
       } catch (e) {
-        console.warn('[AdminCards] Failed to load from Supabase:', e);
+        if (import.meta.env.DEV) console.warn('[AdminCards] Failed to load from Supabase:', e);
       }
       
       // Fallback to localStorage
@@ -60,7 +60,7 @@ const AdminCardsPage = () => {
       if (savedCards) {
         try {
           const parsed = JSON.parse(savedCards);
-          console.log('[AdminCards] Loaded from localStorage');
+          if (import.meta.env.DEV) console.log('[AdminCards] Loaded from localStorage');
           setCategories(parsed);
           return;
         } catch {
@@ -69,7 +69,7 @@ const AdminCardsPage = () => {
       }
       
       // Use defaults
-      console.log('[AdminCards] Using default cards');
+      if (import.meta.env.DEV) console.log('[AdminCards] Using default cards');
       setCategories(initialCategories);
     };
     
@@ -130,11 +130,11 @@ const AdminCardsPage = () => {
         });
       
       if (error) {
-        console.error('[AdminCards] Supabase save failed:', error);
+        if (import.meta.env.DEV) console.error('[AdminCards] Supabase save failed:', error);
         setErrorMessage('Сохранено локально. Ошибка синхронизации: ' + error.message);
         setSaveStatus('error');
       } else {
-        console.log('[AdminCards] Saved to Supabase:', categories.map(c => `${c.key}: ${c.cards.length}`));
+        if (import.meta.env.DEV) console.log('[AdminCards] Saved to Supabase:', categories.map(c => `${c.key}: ${c.cards.length}`));
         setSaveStatus('success');
       }
       
@@ -171,7 +171,7 @@ const AdminCardsPage = () => {
             updated_at: new Date().toISOString()
           });
       } catch (e) {
-        console.warn('[AdminCards] Failed to clear Supabase:', e);
+        if (import.meta.env.DEV) console.warn('[AdminCards] Failed to clear Supabase:', e);
       }
     }
   };

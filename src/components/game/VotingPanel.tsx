@@ -238,7 +238,7 @@ const VotingPanel = memo(() => {
         {currentPlayer.isHost && (!eliminatedPlayer || eliminatedPlayer.votesAgainst === 0) && (
           <div className="text-center">
             <p className="text-muted-foreground mb-4 text-sm sm:text-base">Никто не получил голосов</p>
-            <button onClick={nextPhase} className="bunker-button">
+            <button onClick={processVotingResults} className="bunker-button">
               Следующий раунд
             </button>
           </div>

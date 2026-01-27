@@ -100,7 +100,7 @@ export function useGameDatabase() {
     const characteristics = generateRandomCharacteristics();
 
     // Insert game first
-    console.log('[DB] Inserting game:', gameId);
+    if (import.meta.env.DEV) console.log('[DB] Inserting game:', gameId);
     const { error: gameError } = await supabase
       .from('games')
       .insert({
@@ -124,13 +124,13 @@ export function useGameDatabase() {
       });
 
     if (gameError) {
-      console.error('[DB] Error creating game:', gameError.message, gameError.code);
+      if (import.meta.env.DEV) console.error('[DB] Error creating game:', gameError.message, gameError.code);
       return null;
     }
-    console.log('[DB] Game created successfully');
+    if (import.meta.env.DEV) console.log('[DB] Game created successfully');
 
     // Insert host player with auth.uid() as ID
-    console.log('[DB] Inserting player:', playerId);
+    if (import.meta.env.DEV) console.log('[DB] Inserting player:', playerId);
     const { error: playerError } = await supabase
       .from('players')
       .insert({
@@ -146,12 +146,12 @@ export function useGameDatabase() {
       });
 
     if (playerError) {
-      console.error('[DB] Error creating player:', playerError.message, playerError.code);
+      if (import.meta.env.DEV) console.error('[DB] Error creating player:', playerError.message, playerError.code);
       // Try to clean up the game
       await supabase.from('games').delete().eq('id', gameId);
       return null;
     }
-    console.log('[DB] Player created successfully');
+    if (import.meta.env.DEV) console.log('[DB] Player created successfully');
 
     return { gameId, playerId };
   }, []);
@@ -189,7 +189,7 @@ export function useGameDatabase() {
 
     if (existingPlayer) {
       // Player already in this game - allow rejoin
-      console.log('[JoinGame] Player already in game, allowing rejoin');
+      if (import.meta.env.DEV) console.log('[JoinGame] Player already in game, allowing rejoin');
       return { playerId };
     }
     
@@ -438,7 +438,9 @@ export function useGameDatabase() {
 
   // Restart game with same players but new characteristics
   const restartGame = useCallback(async (gameId: string): Promise<boolean> => {
-    console.log('[DB] Restarting game:', gameId);
+    if (import.meta.env.DEV) {
+      console.log('[DB] Restarting game:', gameId);
+    }
     
     // Get all players in this game
     const { data: players, error: playersError } = await supabase
@@ -448,7 +450,9 @@ export function useGameDatabase() {
       .order('created_at', { ascending: true });
 
     if (playersError || !players || players.length < 2) {
-      console.error('[DB] Error fetching players for restart:', playersError);
+      if (import.meta.env.DEV) {
+        console.error('[DB] Error fetching players for restart:', playersError);
+      }
       return false;
     }
 
@@ -464,9 +468,9 @@ export function useGameDatabase() {
     const bunker = bunkerToDBFormat(getRandomBunker());
     const catastrophe = catastropheToDBFormat(getRandomCatastrophe());
 
-    // Reset each player with new characteristics
-    for (let i = 0; i < players.length; i++) {
-      const { error: playerUpdateError } = await supabase
+    // Reset all players with new characteristics in parallel
+    const playerUpdates = players.map((player, i) =>
+      supabase
         .from('players')
         .update({
           characteristics: allCharacteristics[i] as any,
@@ -475,12 +479,16 @@ export function useGameDatabase() {
           votes_against: 0,
           has_voted: false,
         })
-        .eq('id', players[i].id);
+        .eq('id', player.id)
+    );
 
-      if (playerUpdateError) {
-        console.error('[DB] Error updating player for restart:', playerUpdateError);
-        return false;
+    const playerResults = await Promise.all(playerUpdates);
+    const playerError = playerResults.find(r => r.error);
+    if (playerError?.error) {
+      if (import.meta.env.DEV) {
+        console.error('[DB] Error updating player for restart:', playerError.error);
       }
+      return false;
     }
 
     // Reset game state to introduction
@@ -507,7 +515,9 @@ export function useGameDatabase() {
       .eq('id', gameId);
 
     if (gameError) {
-      console.error('[DB] Error resetting game state:', gameError);
+      if (import.meta.env.DEV) {
+        console.error('[DB] Error resetting game state:', gameError);
+      }
       return false;
     }
 
@@ -517,7 +527,9 @@ export function useGameDatabase() {
       .delete()
       .eq('game_id', gameId);
 
-    console.log('[DB] Game restarted successfully');
+    if (import.meta.env.DEV) {
+      console.log('[DB] Game restarted successfully');
+    }
     return true;
   }, []);
 

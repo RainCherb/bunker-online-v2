@@ -159,7 +159,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           filter: `id=eq.${gameId}`,
         },
         async (payload) => {
-          console.log('[Realtime] Game update received:', payload.eventType);
+          if (import.meta.env.DEV) console.log('[Realtime] Game update received:', payload.eventType);
           await refreshState();
         }
       )
@@ -172,12 +172,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
           filter: `game_id=eq.${gameId}`,
         },
         async (payload) => {
-          console.log('[Realtime] Players update received:', payload.eventType);
+          if (import.meta.env.DEV) console.log('[Realtime] Players update received:', payload.eventType);
           await refreshState();
         }
       )
       .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status);
+        if (import.meta.env.DEV) console.log('[Realtime] Subscription status:', status);
       });
 
     channelRef.current = channel;
@@ -209,20 +209,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     
     try {
       // Ensure user is authenticated (anonymous auth)
-      console.log('[CreateGame] Starting authentication...');
+      if (import.meta.env.DEV) console.log('[CreateGame] Starting authentication...');
       const user = await ensureAuthenticated();
       if (!user) {
-        console.error('[CreateGame] Failed to authenticate - no user returned');
+        if (import.meta.env.DEV) console.error('[CreateGame] Failed to authenticate - no user returned');
         setIsLoading(false);
         return null;
       }
-      console.log('[CreateGame] Authenticated as:', user.id);
+      if (import.meta.env.DEV) console.log('[CreateGame] Authenticated as:', user.id);
       
-      console.log('[CreateGame] Creating game for:', hostName);
+      if (import.meta.env.DEV) console.log('[CreateGame] Creating game for:', hostName);
       const result = await db.createGame(hostName, user.id);
       
       if (result) {
-        console.log('[CreateGame] Game created:', result.gameId);
+        if (import.meta.env.DEV) console.log('[CreateGame] Game created:', result.gameId);
         saveSession(result.gameId);
         setCurrentPlayerIdState(result.playerId);
         const fetchResult = await fetchGameState(result.gameId);
@@ -233,13 +233,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
         setupRealtimeSubscription(result.gameId);
       } else {
-        console.error('[CreateGame] db.createGame returned null');
+        if (import.meta.env.DEV) console.error('[CreateGame] db.createGame returned null');
       }
       
       setIsLoading(false);
       return result?.gameId || null;
     } catch (error) {
-      console.error('[CreateGame] Exception:', error);
+      if (import.meta.env.DEV) console.error('[CreateGame] Exception:', error);
       setIsLoading(false);
       return null;
     }
@@ -252,7 +252,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Ensure user is authenticated (anonymous auth)
     const user = await ensureAuthenticated();
     if (!user) {
-      console.error('[JoinGame] Failed to authenticate');
+      if (import.meta.env.DEV) console.error('[JoinGame] Failed to authenticate');
       setIsLoading(false);
       return false;
     }
@@ -289,11 +289,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return false;
     }
     
-    // If game is over, clear session
+    // If game is over, clear session and signal to redirect
     if (result.state.phase === 'gameover') {
       localStorage.removeItem(GAME_ID_KEY);
+      await signOut();
       setIsLoading(false);
-      return false;
+      return false; // Caller should redirect to home
     }
     
     if (result.state.players.find(p => p.id === playerId)) {
@@ -387,7 +388,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (success) {
       // Mark that this turn has revealed and set new timer (5 minutes after reveal)
       const newEndsAt = new Date(Date.now() + 5 * 60 * 1000);
-      console.log('[Reveal] Card revealed, setting 5 min timer');
+      if (import.meta.env.DEV) console.log('[Reveal] Card revealed, setting 5 min timer');
       
       // Use atomic function to update turn state
       await supabase.rpc('mark_turn_revealed', {
@@ -408,14 +409,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const available = getAvailableCharacteristics(playerId);
     if (available.length === 0) {
-      console.log('[AutoReveal] No available characteristics');
+      if (import.meta.env.DEV) console.log('[AutoReveal] No available characteristics');
       return;
     }
 
     // Pick a random available characteristic
     const randomIndex = Math.floor(Math.random() * available.length);
     const characteristic = available[randomIndex];
-    console.log('[AutoReveal] Auto-revealing:', characteristic, 'for player:', player.name);
+    if (import.meta.env.DEV) console.log('[AutoReveal] Auto-revealing:', characteristic, 'for player:', player.name);
     
     // Directly update DB to avoid canReveal checks since this is auto-reveal
     await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
@@ -438,14 +439,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Calculate new phase_ends_at (60 seconds for next player to reveal)
     const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
     
-    console.log('[NextTurn] Moving to next player, nextIndex:', nextIndex, 'total alive:', alivePlayers.length);
+    if (import.meta.env.DEV) console.log('[NextTurn] Moving to next player, nextIndex:', nextIndex, 'total alive:', alivePlayers.length);
     
     // If all players have had their turn
     if (nextIndex >= alivePlayers.length) {
       // Round 1: Go to discussion for 30 seconds, then next round
       if (gameState.currentRound === 1) {
         const discussionEndsAt = new Date(Date.now() + 30 * 1000).toISOString();
-        console.log('[NextTurn] All players done in round 1, going to discussion');
+        if (import.meta.env.DEV) console.log('[NextTurn] All players done in round 1, going to discussion');
         await supabase.rpc('update_game_state', { 
           p_game_id: gameState.id,
           p_phase: 'discussion',
@@ -455,7 +456,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       } else {
         // Round 2+: Go to voting
-        console.log('[NextTurn] All players done in round', gameState.currentRound, ', going to defense');
+        if (import.meta.env.DEV) console.log('[NextTurn] All players done in round', gameState.currentRound, ', going to defense');
         await supabase.rpc('update_game_state', { 
           p_game_id: gameState.id,
           p_phase: 'defense',
@@ -464,7 +465,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
       }
     } else {
-      console.log('[NextTurn] Moving to player index:', nextIndex);
+      if (import.meta.env.DEV) console.log('[NextTurn] Moving to player index:', nextIndex);
       await supabase.rpc('update_game_state', { 
         p_game_id: gameState.id,
         p_current_player_index: nextIndex,
@@ -477,17 +478,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // Move to next phase
   const nextPhase = useCallback(async () => {
     if (!gameState) {
-      console.log('[nextPhase] No gameState, returning');
+      if (import.meta.env.DEV) console.log('[nextPhase] No gameState, returning');
       return;
     }
 
-    console.log('[nextPhase] Current phase:', gameState.phase);
+    if (import.meta.env.DEV) console.log('[nextPhase] Current phase:', gameState.phase);
     
     const alivePlayers = gameState.players.filter(p => !p.isEliminated);
     
     // Check if game should end
     if (alivePlayers.length <= gameState.bunkerSlots) {
-      console.log('[nextPhase] Game over condition met');
+      if (import.meta.env.DEV) console.log('[nextPhase] Game over condition met');
       await db.updateGamePhase(gameState.id, { phase: 'gameover', phase_ends_at: null });
       return;
     }
@@ -526,9 +527,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await db.updateGamePhase(gameState.id, { phase: 'voting', phase_ends_at: null });
         break;
       case 'voting':
-        console.log('[nextPhase] Voting -> Results');
+        if (import.meta.env.DEV) console.log('[nextPhase] Voting -> Results');
         await db.updateGamePhase(gameState.id, { phase: 'results', phase_ends_at: null });
-        console.log('[nextPhase] Phase updated to results');
+        if (import.meta.env.DEV) console.log('[nextPhase] Phase updated to results');
         break;
       case 'results':
         await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
@@ -558,7 +559,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const maxVotes = Math.max(...alivePlayers.map(p => p.votesAgainst));
     
     if (maxVotes === 0) {
-      // No votes cast, skip elimination - single atomic update
+      // No votes cast - check if game should end first
+      if (alivePlayers.length <= gameState.bunkerSlots) {
+        await db.updateGamePhase(gameState.id, { phase: 'gameover', phase_ends_at: null });
+        return;
+      }
+      
+      // Skip elimination - single atomic update
       const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
       await db.resetVotes(gameState.id);
       await db.updateGamePhase(gameState.id, { 
@@ -589,7 +596,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // TIE! Check if this is already a revote - if so, eliminate all tied players
       if (gameState.isRevote) {
         // Second tie - eliminate ALL tied players
-        console.log('[Voting] Second tie detected, eliminating all tied players:', playersWithMaxVotes.map(p => p.name));
+        if (import.meta.env.DEV) console.log('[Voting] Second tie detected, eliminating all tied players:', playersWithMaxVotes.map(p => p.name));
         for (const tiedPlayer of playersWithMaxVotes) {
           await db.eliminatePlayer(tiedPlayer.id);
         }
@@ -645,12 +652,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const restartGame = useCallback(async (): Promise<boolean> => {
     if (!gameState || !currentPlayer?.isHost) return false;
     
-    console.log('[RestartGame] Starting restart for game:', gameState.id);
+    if (import.meta.env.DEV) console.log('[RestartGame] Starting restart for game:', gameState.id);
     
     try {
       const success = await db.restartGame(gameState.id);
       if (success) {
-        console.log('[RestartGame] Game restarted successfully');
+        if (import.meta.env.DEV) console.log('[RestartGame] Game restarted successfully');
         // Fetch updated state
         const result = await fetchGameState(gameState.id);
         if (result) {
@@ -662,7 +669,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (error) {
-      console.error('[RestartGame] Error:', error);
+      if (import.meta.env.DEV) console.error('[RestartGame] Error:', error);
       return false;
     }
   }, [gameState, currentPlayer?.isHost, db, fetchGameState]);

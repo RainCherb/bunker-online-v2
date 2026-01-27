@@ -22,7 +22,7 @@ export function useServerTimer({ phaseEndsAt, onTimeUp, enabled = true }: UseSer
   useEffect(() => {
     const currentPhaseStr = phaseEndsAt?.toISOString() || null;
     if (currentPhaseStr !== lastPhaseEndsAtRef.current) {
-      console.log('[Timer] Phase changed, resetting trigger:', currentPhaseStr);
+      if (import.meta.env.DEV) console.log('[Timer] Phase changed, resetting trigger:', currentPhaseStr);
       hasTriggeredRef.current = false;
       isTriggering.current = false;
       lastPhaseEndsAtRef.current = currentPhaseStr;
@@ -46,7 +46,7 @@ export function useServerTimer({ phaseEndsAt, onTimeUp, enabled = true }: UseSer
     // Initial calculation
     const initialRemaining = calculateRemaining();
     setTimeRemaining(initialRemaining);
-    console.log('[Timer] Initial time:', initialRemaining, 'seconds');
+    if (import.meta.env.DEV) console.log('[Timer] Initial time:', initialRemaining, 'seconds');
 
     const interval = setInterval(() => {
       const remaining = calculateRemaining();
@@ -56,13 +56,13 @@ export function useServerTimer({ phaseEndsAt, onTimeUp, enabled = true }: UseSer
       if (remaining <= 0 && !hasTriggeredRef.current && !isTriggering.current) {
         hasTriggeredRef.current = true;
         isTriggering.current = true;
-        console.log('[Timer] Time up! Triggering callback...');
+        if (import.meta.env.DEV) console.log('[Timer] Time up! Triggering callback...');
         
         // Execute immediately without delay
         try {
           onTimeUpRef.current();
         } catch (error) {
-          console.error('[Timer] Error in onTimeUp callback:', error);
+          if (import.meta.env.DEV) console.error('[Timer] Error in onTimeUp callback:', error);
         } finally {
           // Reset triggering flag after a delay to prevent rapid re-triggers
           setTimeout(() => {

@@ -13,11 +13,14 @@ const GameOverScreen = () => {
   const [bestPlayer, setBestPlayer] = useState<Player | null>(null);
   const [showBestPlayer, setShowBestPlayer] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
+  const [restartError, setRestartError] = useState(false);
   const timerStartedRef = useRef(false);
+  const bestPlayerFetchedRef = useRef(false);
 
   // Fetch best player data immediately on mount
   useEffect(() => {
-    if (!gameState) return;
+    if (!gameState || bestPlayerFetchedRef.current) return;
+    bestPlayerFetchedRef.current = true;
 
     const fetchBestPlayer = async () => {
       try {
@@ -26,63 +29,67 @@ const GameOverScreen = () => {
           .select('viewed_player_id')
           .eq('game_id', gameState.id);
 
+        let selectedPlayer: Player | null = null;
+
         if (error || !views || views.length === 0) {
           // No views recorded, pick random player
           const randomIndex = Math.floor(Math.random() * gameState.players.length);
-          setBestPlayer(gameState.players[randomIndex]);
-          return;
+          selectedPlayer = gameState.players[randomIndex];
+        } else {
+          // Count views per player
+          const viewCounts: Record<string, number> = {};
+          views.forEach(v => {
+            viewCounts[v.viewed_player_id] = (viewCounts[v.viewed_player_id] || 0) + 1;
+          });
+
+          // Find max view count
+          const maxViews = Math.max(...Object.values(viewCounts));
+
+          // Get all players with max views
+          const topPlayerIds = Object.entries(viewCounts)
+            .filter(([_, count]) => count === maxViews)
+            .map(([id]) => id);
+
+          // Pick random if there's a tie
+          const selectedPlayerId = topPlayerIds[Math.floor(Math.random() * topPlayerIds.length)];
+          selectedPlayer = gameState.players.find(p => p.id === selectedPlayerId) || null;
+
+          if (!selectedPlayer) {
+            // Fallback to random player
+            const randomIndex = Math.floor(Math.random() * gameState.players.length);
+            selectedPlayer = gameState.players[randomIndex];
+          }
         }
 
-        // Count views per player
-        const viewCounts: Record<string, number> = {};
-        views.forEach(v => {
-          viewCounts[v.viewed_player_id] = (viewCounts[v.viewed_player_id] || 0) + 1;
-        });
-
-        // Find max view count
-        const maxViews = Math.max(...Object.values(viewCounts));
-
-        // Get all players with max views
-        const topPlayerIds = Object.entries(viewCounts)
-          .filter(([_, count]) => count === maxViews)
-          .map(([id]) => id);
-
-        // Pick random if there's a tie
-        const selectedPlayerId = topPlayerIds[Math.floor(Math.random() * topPlayerIds.length)];
-        const selectedPlayer = gameState.players.find(p => p.id === selectedPlayerId);
-
-        if (selectedPlayer) {
-          setBestPlayer(selectedPlayer);
-        } else {
-          // Fallback to random player
-          const randomIndex = Math.floor(Math.random() * gameState.players.length);
-          setBestPlayer(gameState.players[randomIndex]);
+        setBestPlayer(selectedPlayer);
+        
+        // Start 3-second timer AFTER bestPlayer is fetched
+        if (!timerStartedRef.current) {
+          timerStartedRef.current = true;
+          setTimeout(() => {
+            setShowBestPlayer(true);
+          }, 3000);
         }
       } catch (err) {
-        console.error('Error fetching profile views:', err);
+        if (import.meta.env.DEV) {
+          console.error('Error fetching profile views:', err);
+        }
         // Fallback to random player
         const randomIndex = Math.floor(Math.random() * gameState.players.length);
         setBestPlayer(gameState.players[randomIndex]);
+        
+        // Still start timer on error
+        if (!timerStartedRef.current) {
+          timerStartedRef.current = true;
+          setTimeout(() => {
+            setShowBestPlayer(true);
+          }, 3000);
+        }
       }
     };
 
     fetchBestPlayer();
   }, [gameState?.id]); // Only depend on gameState.id, not the whole object
-
-  // Show best player card after exactly 3 seconds - only start timer ONCE
-  useEffect(() => {
-    if (!gameState || timerStartedRef.current) return;
-    
-    timerStartedRef.current = true;
-    console.log('[BestPlayer] Starting 3 second timer');
-
-    const timer = setTimeout(() => {
-      console.log('[BestPlayer] Timer fired, showing card');
-      setShowBestPlayer(true);
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [gameState]);
 
   if (!gameState) return null;
 
@@ -101,15 +108,22 @@ const GameOverScreen = () => {
   const handlePlayAgain = async () => {
     if (isRestarting || !currentPlayer?.isHost) return;
     setIsRestarting(true);
+    setRestartError(false);
     try {
       const success = await restartGame();
       if (!success) {
-        console.error('Failed to restart game');
+        if (import.meta.env.DEV) {
+          console.error('Failed to restart game');
+        }
+        setRestartError(true);
         setIsRestarting(false);
       }
       // If successful, GameContext will update gameState and navigate us
     } catch (error) {
-      console.error('Error restarting game:', error);
+      if (import.meta.env.DEV) {
+        console.error('Error restarting game:', error);
+      }
+      setRestartError(true);
       setIsRestarting(false);
     }
   };
@@ -236,18 +250,23 @@ const GameOverScreen = () => {
           className="text-center flex flex-col sm:flex-row gap-4 justify-center items-center"
         >
           {currentPlayer?.isHost && (
-            <button
-              onClick={handlePlayAgain}
-              disabled={isRestarting}
-              className="bunker-button inline-flex items-center gap-3 bg-primary hover:bg-primary/90"
-            >
-              {isRestarting ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <RotateCcw className="w-5 h-5" />
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={handlePlayAgain}
+                disabled={isRestarting}
+                className="bunker-button inline-flex items-center gap-3 bg-primary hover:bg-primary/90"
+              >
+                {isRestarting ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <RotateCcw className="w-5 h-5" />
+                )}
+                ЕЩЕ РАЗ?
+              </button>
+              {restartError && (
+                <p className="text-destructive text-sm">Ошибка перезапуска. Попробуйте еще раз.</p>
               )}
-              ЕЩЕ РАЗ?
-            </button>
+            </div>
           )}
           <button
             onClick={handleGoHome}

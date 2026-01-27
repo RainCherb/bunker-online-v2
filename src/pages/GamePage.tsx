@@ -80,7 +80,7 @@ const GamePage = () => {
           if (!prevPlayer.revealedCharacteristics.includes(charKey)) {
             // New reveal detected!
             const typedKey = charKey as keyof Characteristics;
-            console.log('[Animation] New reveal detected:', player.name, typedKey);
+            if (import.meta.env.DEV) console.log('[Animation] New reveal detected:', player.name, typedKey);
             setRevealAnimation({
               playerName: player.name,
               characteristicKey: typedKey,
@@ -108,23 +108,23 @@ const GamePage = () => {
   const handleTurnTimeout = useCallback(async () => {
     if (!currentTurnPlayer || !isTurnPhase || !currentPlayer?.isHost) return;
     
-    console.log('[Timeout] Turn timeout triggered, host executing...');
-    console.log('[Timeout] turnHasRevealed:', turnHasRevealed);
+    if (import.meta.env.DEV) console.log('[Timeout] Turn timeout triggered, host executing...');
+    if (import.meta.env.DEV) console.log('[Timeout] turnHasRevealed:', turnHasRevealed);
     
     // If current turn player hasn't revealed, auto-reveal for them first
     if (!turnHasRevealed) {
-      console.log('[Timeout] Auto-revealing for player:', currentTurnPlayer.name);
+      if (import.meta.env.DEV) console.log('[Timeout] Auto-revealing for player:', currentTurnPlayer.name);
       try {
         await autoRevealRandomCharacteristic(currentTurnPlayer.id);
-        console.log('[Timeout] Auto-reveal completed, 5 min timer started');
+        if (import.meta.env.DEV) console.log('[Timeout] Auto-reveal completed, 5 min timer started');
         // After auto-reveal, the timer will be reset to 5 minutes
         // The next timeout will then call nextPlayerTurn
       } catch (error) {
-        console.error('[Timeout] Auto-reveal failed:', error);
+        if (import.meta.env.DEV) console.error('[Timeout] Auto-reveal failed:', error);
       }
     } else {
       // Player already revealed, time for discussion is up - move to next player
-      console.log('[Timeout] Player already revealed, moving to next player');
+      if (import.meta.env.DEV) console.log('[Timeout] Player already revealed, moving to next player');
       await nextPlayerTurn();
     }
   }, [currentTurnPlayer, isTurnPhase, turnHasRevealed, autoRevealRandomCharacteristic, currentPlayer?.isHost, nextPlayerTurn]);
@@ -132,7 +132,7 @@ const GamePage = () => {
   // Handle discussion timeout (after round 1) - only host executes
   const handleDiscussionTimeout = useCallback(async () => {
     if (!isDiscussionPhase || !currentPlayer?.isHost || gameState?.currentRound !== 1) return;
-    console.log('Discussion timeout triggered, host executing...');
+    if (import.meta.env.DEV) console.log('Discussion timeout triggered, host executing...');
     await nextPhase();
   }, [isDiscussionPhase, currentPlayer?.isHost, nextPhase, gameState?.currentRound]);
 
@@ -213,7 +213,7 @@ const GamePage = () => {
     // Only trigger once when allVoted changes from false to true
     if (allVoted && !wasAllVoted && !autoResultsTriggeredRef.current && currentPlayer?.isHost) {
       autoResultsTriggeredRef.current = true;
-      console.log('[AutoResults] All players voted, showing results in 2 seconds...');
+      if (import.meta.env.DEV) console.log('[AutoResults] All players voted, showing results in 2 seconds...');
       
       // Capture nextPhase to avoid stale closure
       const triggerNextPhase = nextPhase;
@@ -221,16 +221,16 @@ const GamePage = () => {
       autoResultsTimerRef.current = setTimeout(async () => {
         // Check if component is still mounted
         if (!isMountedRef.current) {
-          console.log('[AutoResults] Component unmounted, skipping nextPhase');
+          if (import.meta.env.DEV) console.log('[AutoResults] Component unmounted, skipping nextPhase');
           return;
         }
         
-        console.log('[AutoResults] Timer fired, calling nextPhase...');
+        if (import.meta.env.DEV) console.log('[AutoResults] Timer fired, calling nextPhase...');
         try {
           await triggerNextPhase();
-          console.log('[AutoResults] nextPhase completed');
+          if (import.meta.env.DEV) console.log('[AutoResults] nextPhase completed');
         } catch (error) {
-          console.error('[AutoResults] nextPhase error:', error);
+          if (import.meta.env.DEV) console.error('[AutoResults] nextPhase error:', error);
         }
         autoResultsTimerRef.current = null;
       }, 2000);

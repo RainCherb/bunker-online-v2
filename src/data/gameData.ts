@@ -16,7 +16,7 @@ let supabaseCardsLoaded = false;
 // Load custom cards from Supabase (call this before generating characteristics)
 export async function loadCustomCardsFromSupabase(): Promise<Record<string, string[]> | null> {
   try {
-    console.log('[CustomCards] Loading cards from Supabase...');
+    if (import.meta.env.DEV) console.log('[CustomCards] Loading cards from Supabase...');
     const { data, error } = await supabase
       .from('game_cards')
       .select('cards_data')
@@ -24,7 +24,7 @@ export async function loadCustomCardsFromSupabase(): Promise<Record<string, stri
       .single();
     
     if (error) {
-      console.warn('[CustomCards] Supabase error:', error.message);
+      if (import.meta.env.DEV) console.warn('[CustomCards] Supabase error:', error.message);
       return null;
     }
     
@@ -38,16 +38,16 @@ export async function loadCustomCardsFromSupabase(): Promise<Record<string, stri
       });
       
       if (Object.keys(result).length > 0) {
-        console.log('[CustomCards] Loaded from Supabase:', Object.keys(result).map(k => `${k}: ${result[k].length}`));
+        if (import.meta.env.DEV) console.log('[CustomCards] Loaded from Supabase:', Object.keys(result).map(k => `${k}: ${result[k].length}`));
         cachedSupabaseCards = result;
         supabaseCardsLoaded = true;
         return result;
       }
     }
     
-    console.log('[CustomCards] No custom cards in Supabase');
+    if (import.meta.env.DEV) console.log('[CustomCards] No custom cards in Supabase');
   } catch (e) {
-    console.warn('[CustomCards] Failed to load from Supabase:', e);
+    if (import.meta.env.DEV) console.warn('[CustomCards] Failed to load from Supabase:', e);
   }
   
   supabaseCardsLoaded = true;
@@ -72,11 +72,11 @@ function getCustomCards(): Record<string, string[]> | null {
       categories.forEach(cat => {
         result[cat.key] = cat.cards;
       });
-      console.log('[CustomCards] Loaded from localStorage:', Object.keys(result));
+      if (import.meta.env.DEV) console.log('[CustomCards] Loaded from localStorage:', Object.keys(result));
       return result;
     }
   } catch (e) {
-    console.warn('[CustomCards] Failed to load from localStorage:', e);
+    if (import.meta.env.DEV) console.warn('[CustomCards] Failed to load from localStorage:', e);
   }
   return null;
 }
@@ -85,7 +85,7 @@ function getCustomCards(): Record<string, string[]> | null {
 function getCards(key: string, defaults: string[]): string[] {
   const custom = getCustomCards();
   if (custom && custom[key] && custom[key].length > 0) {
-    console.log(`[CustomCards] Using custom ${key}: ${custom[key].length} cards`);
+    if (import.meta.env.DEV) console.log(`[CustomCards] Using custom ${key}: ${custom[key].length} cards`);
     return custom[key];
   }
   return defaults;
@@ -762,7 +762,7 @@ export const ACTION_CARDS: string[] = [
 // Generate unique characteristics for all players in a game session
 // This ensures no duplicate cards across players
 export function generateUniqueCharacteristicsForPlayers(playerCount: number): Characteristics[] {
-  console.log('[GameData] Generating characteristics for', playerCount, 'players');
+  if (import.meta.env.DEV) console.log('[GameData] Generating characteristics for', playerCount, 'players');
   
   // Load custom cards or use defaults
   const professions = getCards('professions', PROFESSIONS);
@@ -773,7 +773,7 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   const biologyTemplates = getCards('biology', BIOLOGY_TEMPLATES);
   const healthConditions = getCards('health', HEALTH_CONDITIONS_RAW);
   
-  console.log('[GameData] Cards loaded - professions:', professions.length, ', hobbies:', hobbies.length);
+  if (import.meta.env.DEV) console.log('[GameData] Cards loaded - professions:', professions.length, ', hobbies:', hobbies.length);
 
   const usedCards: Record<string, Set<string>> = {
     profession: new Set(),
