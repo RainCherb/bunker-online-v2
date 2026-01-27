@@ -9,6 +9,7 @@ import {
   ACTION_CARDS,
   BIOLOGY_TEMPLATES,
   HEALTH_CONDITIONS_RAW,
+  PHOBIAS,
 } from '@/data/gameData';
 
 interface CardCategory {
@@ -31,6 +32,7 @@ const AdminCardsPage = () => {
       { name: 'Профессии', key: 'professions', cards: [...PROFESSIONS], description: 'Профессии персонажей' },
       { name: 'Биология', key: 'biology', cards: [...BIOLOGY_TEMPLATES], description: 'Пол, возраст, ориентация (используйте {age} для случайного возраста)' },
       { name: 'Здоровье', key: 'health', cards: [...HEALTH_CONDITIONS_RAW], description: 'Состояние здоровья (используйте [Тяжесть: %] для случайной тяжести)' },
+      { name: 'Фобии', key: 'phobias', cards: [...PHOBIAS], description: 'Страхи и фобии персонажей' },
       { name: 'Хобби', key: 'hobbies', cards: [...HOBBIES], description: 'Увлечения персонажей' },
       { name: 'Багаж', key: 'baggage', cards: [...BAGGAGE], description: 'Предметы в багаже' },
       { name: 'Факты', key: 'facts', cards: [...FACTS], description: 'Особенности и факты о персонаже' },
@@ -153,6 +155,7 @@ const AdminCardsPage = () => {
         { name: 'Профессии', key: 'professions', cards: [...PROFESSIONS], description: 'Профессии персонажей' },
         { name: 'Биология', key: 'biology', cards: [...BIOLOGY_TEMPLATES], description: 'Пол, возраст, ориентация' },
         { name: 'Здоровье', key: 'health', cards: [...HEALTH_CONDITIONS_RAW], description: 'Состояние здоровья' },
+        { name: 'Фобии', key: 'phobias', cards: [...PHOBIAS], description: 'Страхи и фобии' },
         { name: 'Хобби', key: 'hobbies', cards: [...HOBBIES], description: 'Увлечения персонажей' },
         { name: 'Багаж', key: 'baggage', cards: [...BAGGAGE], description: 'Предметы в багаже' },
         { name: 'Факты', key: 'facts', cards: [...FACTS], description: 'Особенности и факты' },

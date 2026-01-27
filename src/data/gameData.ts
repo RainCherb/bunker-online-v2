@@ -758,8 +758,60 @@ export const ACTION_CARDS: string[] = [
   'Может выбрать, кто будет говорить следующим',
 ];
 
+export const PHOBIAS: string[] = [
+  'Клаустрофобия (боязнь замкнутых пространств)',
+  'Агорафобия (боязнь открытых пространств)',
+  'Социофобия (боязнь социальных взаимодействий)',
+  'Гемофобия (боязнь вида крови)',
+  'Мизофобия (боязнь загрязнения и микробов)',
+  'Никтофобия (боязнь темноты)',
+  'Арахнофобия (боязнь пауков)',
+  'Кинофобия (боязнь собак)',
+  'Акрофобия (боязнь высоты)',
+  'Аэрофобия (боязнь полетов)',
+  'Бронтофобия (боязнь грома)',
+  'Трипанофобия (боязнь уколов и инъекций)',
+  'Дентофобия (боязнь стоматологов)',
+  'Гленофобия (боязнь взгляда куклы)',
+  'Киберфобия (боязнь компьютеров и технологий)',
+  'Космикофобия (боязнь космических явлений)',
+  'Нефофобия (боязнь облаков)',
+  'Аулофобия (боязнь флейты)',
+  'Линонофобия (боязнь веревок и нитей)',
+  'Гилофобия (боязнь леса и деревьев)',
+  'Трискаидекафобия (боязнь числа 13)',
+  'Анаблепофобия (боязнь смотреть вверх)',
+  'Погонофобия (боязнь бород)',
+  'Кометофобия (боязнь комет)',
+  'Омброфобия (боязнь дождя)',
+  'Скотофобия (боязнь теней)',
+  'Термофобия (боязнь высоких температур)',
+  'Криофобия (боязнь холода и льда)',
+  'Амаксофобия (боязнь транспорта)',
+  'Атаксиофобия (боязнь беспорядка)',
+  'Моноптофобия (боязнь остаться на один глаз)',
+  'Педиофобия (боязнь кукол и манекенов)',
+  'Коулрофобия (боязнь клоунов)',
+  'Сомнифобия (боязнь спать)',
+  'Гносиофобия (боязнь знаний и новой информации)',
+  'Эргофобия (боязнь работы и любой деятельности)',
+  'Декстрофобия (боязнь предметов справа)',
+  'Ойкофобия (боязнь дома и возвращения домой)',
+  'Фобофобия (боязнь самого страха)',
+  'Гадефобия (боязнь ада)',
+  'Ануптафобия (боязнь одиночества)',
+  'Пениафобия (боязнь бедности и нищеты)',
+  'Трихофобия (боязнь попадания волос в еду)',
+  'Папафобия (боязнь Папы Римского)',
+  'Уранофобия (боязнь неба и небесной кары)',
+  'Верминофобия (боязнь бактерий и паразитов)',
+  'Апифобия (боязнь пчел и ос)',
+  'Алекторофобия (боязнь кур и цыплят)',
+  'Метифобия (боязнь алкоголя и опьянения)',
+  'Сидеродромофобия (боязнь железных дорог и поездов)',
+];
 
-// Generate unique characteristics for all players in a game session
+// Generate unique characteristics
 // This ensures no duplicate cards across players
 export function generateUniqueCharacteristicsForPlayers(playerCount: number): Characteristics[] {
   if (import.meta.env.DEV) console.log('[GameData] Generating characteristics for', playerCount, 'players');
@@ -772,6 +824,7 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   const actions = getCards('actions', ACTION_CARDS);
   const biologyTemplates = getCards('biology', BIOLOGY_TEMPLATES);
   const healthConditions = getCards('health', HEALTH_CONDITIONS_RAW);
+  const phobias = getCards('phobias', PHOBIAS);
   
   if (import.meta.env.DEV) console.log('[GameData] Cards loaded - professions:', professions.length, ', hobbies:', hobbies.length);
 
@@ -780,6 +833,7 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
     hobby: new Set(),
     baggage: new Set(),
     fact: new Set(),
+    phobia: new Set(),
     actionCards: new Set(),
   };
   
@@ -830,6 +884,7 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
       profession: getUniqueFromArray(professions, usedCards.profession),
       biology: generateBiologyCustom(),
       health: generateHealthCustom(),
+      phobia: getUniqueFromArray(phobias, usedCards.phobia),
       hobby: getUniqueFromArray(hobbies, usedCards.hobby),
       baggage: getUniqueFromArray(baggage, usedCards.baggage),
       fact: getUniqueFromArray(facts, usedCards.fact),
@@ -849,6 +904,7 @@ export function generateRandomCharacteristics(): Characteristics {
   const baggage = getCards('baggage', BAGGAGE);
   const facts = getCards('facts', FACTS);
   const actions = getCards('actions', ACTION_CARDS);
+  const phobias = getCards('phobias', PHOBIAS);
 
   const getRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const getUniqueRandom = <T>(arr: T[], exclude: T): T => {
@@ -866,6 +922,7 @@ export function generateRandomCharacteristics(): Characteristics {
     profession: getRandom(professions),
     biology: generateBiology(),
     health: generateHealthCondition(),
+    phobia: getRandom(phobias),
     hobby: getRandom(hobbies),
     baggage: getRandom(baggage),
     fact: getRandom(facts),

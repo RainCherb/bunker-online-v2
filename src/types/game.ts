@@ -13,6 +13,7 @@ export interface Characteristics {
   profession: string;
   biology: string;
   health: string;
+  phobia: string;
   hobby: string;
   baggage: string;
   fact: string;
@@ -87,6 +88,7 @@ export const CHARACTERISTIC_NAMES: Record<keyof Characteristics, string> = {
   profession: 'Профессия',
   biology: 'Биология',
   health: 'Здоровье',
+  phobia: 'Фобия',
   hobby: 'Хобби',
   baggage: 'Багаж',
   fact: 'Факт',
@@ -98,6 +100,7 @@ export const CHARACTERISTICS_ORDER: (keyof Characteristics)[] = [
   'profession',
   'biology',
   'health',
+  'phobia',
   'hobby',
   'baggage',
   'fact',
