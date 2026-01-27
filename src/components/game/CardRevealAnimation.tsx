@@ -229,66 +229,82 @@ const CardRevealAnimation = ({
                   <div className="absolute inset-2 rounded-xl border-2 border-primary/50" />
                   
                   {/* Content */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center p-6 sm:p-8">
-                    {/* Player name */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-between p-5 sm:p-6">
+                    {/* Top section - Player opened card */}
                     <motion.div
                       initial={{ opacity: 0, y: -20 }}
                       animate={{ opacity: showContent ? 1 : 0, y: showContent ? 0 : -20 }}
                       transition={{ delay: 0.1 }}
-                      className="text-center mb-4"
+                      className="text-center pt-2"
                     >
-                      <p className="text-muted-foreground text-sm sm:text-base">
+                      <p className="text-muted-foreground text-xs sm:text-sm mb-1">
                         Игрок
                       </p>
-                      <p className="font-display text-secondary text-lg sm:text-xl">
+                      <p className="font-display text-secondary text-base sm:text-lg">
                         {playerName}
+                      </p>
+                      <p className="text-muted-foreground text-xs sm:text-sm mt-1">
+                        открывает карту
                       </p>
                     </motion.div>
 
-                    {/* Characteristic type badge */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: showContent ? 1 : 0, scale: showContent ? 1 : 0.5 }}
-                      transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
-                      className="px-4 py-2 sm:px-6 sm:py-2 rounded-full bg-primary/20 border border-primary/50 mb-4 sm:mb-6"
-                    >
-                      <span className="font-display text-primary text-sm sm:text-lg uppercase tracking-widest">
-                        {characteristicName}
-                      </span>
-                    </motion.div>
-
-                    {/* Decorative line */}
-                    <motion.div
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: showContent ? 1 : 0 }}
-                      transition={{ delay: 0.3, duration: 0.5 }}
-                      className="w-3/4 h-px bg-gradient-to-r from-transparent via-primary to-transparent mb-4 sm:mb-6"
-                    />
-
-                    {/* Main value */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8, y: 20 }}
-                      animate={{
-                        opacity: showContent ? 1 : 0,
-                        scale: showContent ? 1 : 0.8,
-                        y: showContent ? 0 : 20,
-                      }}
-                      transition={{ delay: 0.4, type: 'spring', stiffness: 150 }}
-                      className="text-center px-4 py-4 sm:py-6 rounded-xl bg-primary/10 border border-primary/30 w-full"
-                    >
-                      <motion.p
-                        animate={showContent ? {
-                          textShadow: [
-                            '0 0 10px hsl(var(--primary) / 0.5)',
-                            '0 0 20px hsl(var(--primary) / 0.8)',
-                            '0 0 10px hsl(var(--primary) / 0.5)',
-                          ],
-                        } : {}}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="font-display text-xl sm:text-2xl md:text-3xl text-primary leading-tight"
+                    {/* Middle section - Card type and value */}
+                    <div className="flex-1 flex flex-col items-center justify-center w-full">
+                      {/* Characteristic type badge */}
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: showContent ? 1 : 0, scale: showContent ? 1 : 0.5 }}
+                        transition={{ delay: 0.2, type: 'spring', stiffness: 200 }}
+                        className="px-4 py-1.5 sm:px-5 sm:py-2 rounded-full bg-primary/20 border border-primary/50 mb-3 sm:mb-4"
                       >
-                        {characteristicValue}
-                      </motion.p>
+                        <span className="font-display text-primary text-xs sm:text-sm uppercase tracking-widest">
+                          {characteristicName}
+                        </span>
+                      </motion.div>
+
+                      {/* Decorative line */}
+                      <motion.div
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: showContent ? 1 : 0 }}
+                        transition={{ delay: 0.3, duration: 0.5 }}
+                        className="w-2/3 h-px bg-gradient-to-r from-transparent via-primary to-transparent mb-3 sm:mb-4"
+                      />
+
+                      {/* Main value - the card content */}
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                        animate={{
+                          opacity: showContent ? 1 : 0,
+                          scale: showContent ? 1 : 0.8,
+                          y: showContent ? 0 : 20,
+                        }}
+                        transition={{ delay: 0.4, type: 'spring', stiffness: 150 }}
+                        className="text-center px-3 py-3 sm:px-4 sm:py-4 rounded-xl bg-primary/10 border border-primary/30 w-full"
+                      >
+                        <motion.p
+                          animate={showContent ? {
+                            textShadow: [
+                              '0 0 10px hsl(var(--primary) / 0.5)',
+                              '0 0 20px hsl(var(--primary) / 0.8)',
+                              '0 0 10px hsl(var(--primary) / 0.5)',
+                            ],
+                          } : {}}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          className="font-display text-lg sm:text-xl md:text-2xl text-primary leading-tight"
+                        >
+                          {characteristicValue}
+                        </motion.p>
+                      </motion.div>
+                    </div>
+
+                    {/* Bottom decorative element */}
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: showContent ? 0.5 : 0 }}
+                      transition={{ delay: 0.5 }}
+                      className="pb-2"
+                    >
+                      <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
                     </motion.div>
 
                     {/* Sparkle decorations */}

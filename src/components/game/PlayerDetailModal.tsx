@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Eye, EyeOff, Crown, Skull } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, Eye, EyeOff, Crown, Skull, UserPlus, Copy, Check } from 'lucide-react';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER } from '@/types/game';
+import { useGame } from '@/contexts/GameContext';
 
 interface PlayerDetailModalProps {
   player: Player | null;
@@ -8,7 +10,39 @@ interface PlayerDetailModalProps {
 }
 
 const PlayerDetailModal = ({ player, onClose }: PlayerDetailModalProps) => {
+  const { currentPlayer, gameState } = useGame();
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleGenerateRecoveryLink = useCallback(() => {
+    if (!gameState || !player) return;
+    const token = btoa(`${gameState.id}|${player.id}`);
+    const link = `${window.location.origin}/recover/${token}`;
+    setRecoveryLink(link);
+  }, [gameState, player]);
+
+  const handleCopyLink = async () => {
+    if (!recoveryLink) return;
+    try {
+      await navigator.clipboard.writeText(recoveryLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const textArea = document.createElement('textarea');
+      textArea.value = recoveryLink;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   if (!player) return null;
+  
+  const isHost = currentPlayer?.isHost;
+  const isViewingOther = player.id !== currentPlayer?.id;
 
   return (
     <AnimatePresence>
@@ -96,6 +130,41 @@ const PlayerDetailModal = ({ player, onClose }: PlayerDetailModalProps) => {
               );
             })}
           </div>
+
+          {/* Recovery section for host */}
+          {isHost && isViewingOther && (
+            <div className="px-4 pb-2">
+              {!recoveryLink ? (
+                <button
+                  onClick={handleGenerateRecoveryLink}
+                  className="w-full px-4 py-3 rounded-lg bg-secondary/20 border border-secondary/50 text-secondary hover:bg-secondary/30 transition-colors flex items-center justify-center gap-2 font-display text-sm"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Восстановить игрока
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground text-center">
+                    Отправьте ссылку игроку для восстановления:
+                  </p>
+                  <div className="p-2 rounded bg-muted/50 text-xs break-all font-mono">
+                    {recoveryLink}
+                  </div>
+                  <button
+                    onClick={handleCopyLink}
+                    className={`w-full px-4 py-2 rounded-lg font-display text-sm flex items-center justify-center gap-2 transition-colors ${
+                      copied
+                        ? 'bg-green-500/20 border border-green-500 text-green-500'
+                        : 'bg-secondary/20 border border-secondary text-secondary hover:bg-secondary/30'
+                    }`}
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    {copied ? 'Скопировано!' : 'Копировать'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Footer */}
           <div className="p-4 border-t border-border">
