@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB, CHARACTERISTICS_ORDER } from '@/types/game';
+import { GameState, Player, GamePhase, Characteristics, BunkerDB, CatastropheDB, CHARACTERISTICS_ORDER, PendingAction } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 import { useGameDatabase } from '@/hooks/useGameDatabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,7 +47,30 @@ const dbPlayerToPlayer = (row: any): Player => ({
   revealedCharacteristics: row.revealed_characteristics || [],
   votesAgainst: row.votes_against,
   hasVoted: row.has_voted,
+  usedActionCards: row.used_action_cards || [],
+  extraBaggage: row.extra_baggage || null,
+  extraProfession: row.extra_profession || null,
+  stolenBaggageFrom: row.stolen_baggage_from || null,
 });
+
+// Transform pending_action JSONB to PendingAction type
+const dbPendingActionToPendingAction = (row: any): PendingAction | null => {
+  if (!row) return null;
+  return {
+    cardId: row.card_id,
+    cardName: row.card_name,
+    cardDescription: row.card_description,
+    playerId: row.player_id,
+    playerName: row.player_name,
+    effect: row.effect,
+    requiresTarget: row.requires_target,
+    targetType: row.target_type,
+    targetId: row.target_id || null,
+    expiresAt: new Date(row.expires_at),
+    isCancelled: row.is_cancelled || false,
+    cancelledByPlayerId: row.cancelled_by_player_id || null,
+  };
+};
 
 // Transform database row to GameState type
 const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
@@ -73,6 +96,15 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
   votes: gameRow.votes || {},
   tiedPlayers: gameRow.tied_players || [],
   isRevote: gameRow.is_revote || false,
+  // Action card state
+  pendingAction: dbPendingActionToPendingAction(gameRow.pending_action),
+  roundRestriction: gameRow.round_restriction || null,
+  doubleVotePlayerId: gameRow.double_vote_player_id || null,
+  cannotVotePlayerId: gameRow.cannot_vote_player_id || null,
+  immunityPlayerId: gameRow.immunity_player_id || null,
+  linkedPlayerId: gameRow.linked_player_id || null,
+  linkedByPlayerId: gameRow.linked_by_player_id || null,
+  penaltyNextRoundPlayerId: gameRow.penalty_next_round_player_id || null,
 });
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -535,9 +567,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
         await db.updateGamePhase(gameState.id, { phase: 'farewell', phase_ends_at: null });
         break;
       case 'farewell':
-        // Start new round
+        // Start new round - clear round modifiers from action cards
         const nextRoundEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
         await db.resetVotes(gameState.id);
+        // Clear round modifiers (double vote, immunity, vote block, etc.)
+        await supabase.rpc('clear_round_modifiers', { p_game_id: gameState.id });
         await db.updateGamePhase(gameState.id, {
           phase: 'turn',
           current_round: gameState.currentRound + 1,
@@ -568,6 +602,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       // Skip elimination - single atomic update
       const newEndsAt = new Date(Date.now() + 60 * 1000).toISOString();
       await db.resetVotes(gameState.id);
+      // Clear round modifiers when starting new round
+      await supabase.rpc('clear_round_modifiers', { p_game_id: gameState.id });
       await db.updateGamePhase(gameState.id, { 
         phase: 'turn', 
         phase_ends_at: newEndsAt, 

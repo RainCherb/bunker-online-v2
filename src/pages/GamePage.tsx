@@ -11,7 +11,10 @@ import GameOverScreen from '@/components/game/GameOverScreen';
 import GameTimer from '@/components/game/GameTimer';
 import PlayerDetailModal from '@/components/game/PlayerDetailModal';
 import CardRevealAnimation from '@/components/game/CardRevealAnimation';
+import ActionCardsPanel from '@/components/game/ActionCardsPanel';
+import ActionCardAnimation from '@/components/game/ActionCardAnimation';
 import { useServerTimer } from '@/hooks/useServerTimer';
+import { useActionCards } from '@/hooks/useActionCards';
 import { Player, Characteristics } from '@/types/game';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,6 +55,9 @@ const GamePage = () => {
   const isTurnPhase = gameState?.phase === 'turn';
   const isDiscussionPhase = gameState?.phase === 'discussion';
   const playerRevealed = turnHasRevealed;
+  
+  // Action cards hook
+  const actionCards = useActionCards({ gameState, currentPlayer });
 
   // Detect new card reveals - works for ALL players via realtime updates
   useEffect(() => {
@@ -288,6 +294,63 @@ const GamePage = () => {
   const alivePlayers = gameState.players.filter(p => !p.isEliminated);
   const isVotingPhase = gameState.phase === 'voting' || gameState.phase === 'defense';
   const isResultsPhase = gameState.phase === 'results';
+  const isActualVotingPhase = gameState.phase === 'voting'; // For action cards blocking
+  
+  // Action card state
+  const { canCancel, cardSlot: cancelCardSlot } = actionCards.canCancelPendingAction();
+  const pendingAction = gameState.pendingAction;
+  const isMyPendingAction = actionCards.isMyPendingAction();
+  
+  // Handle action card activation
+  const handleActivateActionCard = async (cardId: string) => {
+    // Find which slot has this card
+    const card1Id = currentPlayer?.characteristics.actionCard1;
+    const card2Id = currentPlayer?.characteristics.actionCard2;
+    
+    const slot = cardId === card1Id ? 'actionCard1' : cardId === card2Id ? 'actionCard2' : null;
+    if (!slot) return;
+    
+    const success = await actionCards.activateCard(slot);
+    if (success && import.meta.env.DEV) {
+      console.log('[ActionCard] Card activated successfully');
+    }
+  };
+  
+  // Handle cancel pending action
+  const handleCancelAction = async () => {
+    const success = await actionCards.cancelPendingAction();
+    if (success && import.meta.env.DEV) {
+      console.log('[ActionCard] Action cancelled successfully');
+    }
+  };
+  
+  // Handle target selection for action card
+  const handleSelectTarget = async (targetId: string) => {
+    const success = await actionCards.applyPendingAction(targetId);
+    if (success && import.meta.env.DEV) {
+      console.log('[ActionCard] Action applied with target:', targetId);
+    }
+  };
+  
+  // Handle cancel window expiration
+  const handleActionTimeExpired = async () => {
+    if (!pendingAction) return;
+    
+    // If cancelled, just clear (animation will handle display)
+    if (pendingAction.isCancelled) return;
+    
+    // If requires target and is my action, wait for target selection
+    if (pendingAction.requiresTarget && isMyPendingAction) {
+      // Target selection will be handled by the animation component
+      return;
+    }
+    
+    // No target needed - apply immediately
+    const success = await actionCards.applyPendingAction();
+    if (success && import.meta.env.DEV) {
+      console.log('[ActionCard] Action auto-applied after timer');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -524,7 +587,32 @@ const GamePage = () => {
             isVisible={!!revealAnimation}
             onComplete={() => setRevealAnimation(null)}
           />
+          
+          {/* Action Card Animation */}
+          <ActionCardAnimation
+            pendingAction={pendingAction}
+            canCancel={canCancel}
+            onCancel={handleCancelAction}
+            onSelectTarget={handleSelectTarget}
+            onTimeExpired={handleActionTimeExpired}
+            validTargets={pendingAction ? actionCards.getValidTargets(pendingAction.targetType) : []}
+            isMyAction={isMyPendingAction}
+          />
         </main>
+        
+        {/* Action Cards Panel - shown at bottom */}
+        {currentPlayer && !currentPlayer.isEliminated && (
+          <ActionCardsPanel
+            actionCardIds={[
+              currentPlayer.characteristics.actionCard1,
+              currentPlayer.characteristics.actionCard2
+            ]}
+            usedCardIds={currentPlayer.usedActionCards || []}
+            canActivate={!pendingAction && !currentPlayer.isEliminated}
+            isVotingPhase={isActualVotingPhase}
+            onActivateCard={handleActivateActionCard}
+          />
+        )}
 
         {/* Mobile Game Info Button */}
         <div className="lg:hidden fixed bottom-4 left-4 z-40">

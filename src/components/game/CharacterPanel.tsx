@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
-import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check } from 'lucide-react';
+import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check, Ban } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 
 // Modal for showing full card details
@@ -215,6 +215,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
   const isMyTurn = isTurnPhase && currentTurnPlayer?.id === currentPlayer?.id;
   const hasRevealed = isOwn ? hasRevealedThisTurn() : false;
   const currentRound = gameState?.currentRound || 1;
+  
+  // Check for round restrictions from action cards
+  const roundRestriction = gameState?.roundRestriction;
 
   // Memoize available characteristics
   const availableChars = useMemo(() => 
@@ -332,14 +335,33 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
             : `📋 Раунд ${currentRound}: Можно раскрыть любую одну карту`}
         </div>
       )}
+      
+      {/* Round restriction warning */}
+      {roundRestriction && isOwn && isTurnPhase && (
+        <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-700/40 flex-shrink-0">
+          <div className="flex items-center gap-2 text-red-400">
+            <Ban className="w-4 h-4" />
+            <span className="text-sm font-medium">ОГРАНИЧЕНИЕ</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            В этом раунде запрещено раскрывать: {' '}
+            <span className="text-red-400 font-medium">
+              {roundRestriction === 'biology' && 'Биологию'}
+              {roundRestriction === 'hobby' && 'Хобби'}
+              {roundRestriction === 'baggage' && 'Багаж'}
+            </span>
+          </p>
+        </div>
+      )}
 
       {/* Characteristics - optimized with less animation */}
       <div className="space-y-2 sm:space-y-3 overflow-y-auto flex-1 will-change-scroll scroll-touch">
         {CHARACTERISTICS_ORDER.map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
           const value = player.characteristics[key];
-          const canReveal = isOwn && canRevealCharacteristic(player.id, key);
-          const isAvailable = availableChars.includes(key);
+          const isRestricted = roundRestriction === key;
+          const canReveal = isOwn && canRevealCharacteristic(player.id, key) && !isRestricted;
+          const isAvailable = availableChars.includes(key) && !isRestricted;
 
           return (
             <div
@@ -384,18 +406,22 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                     className={`px-3 py-2 min-h-[36px] text-xs font-display uppercase tracking-wide rounded transition-colors flex-shrink-0 ${
                       canReveal && !isRevealing
                         ? 'bg-primary/20 text-primary hover:bg-primary/30 cursor-pointer animate-pulse' 
-                        : 'bg-muted text-muted-foreground cursor-not-allowed'
+                        : isRestricted
+                          ? 'bg-red-900/20 text-red-400 cursor-not-allowed'
+                          : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
                   >
-                    {canReveal 
-                      ? 'Раскрыть' 
-                      : (hasRevealed 
-                          ? 'Уже раскрыли' 
-                          : (!isMyTurn 
-                              ? 'Не ваш ход' 
-                              : (currentRound === 1 && key !== 'profession' 
-                                  ? 'Только профессия' 
-                                  : 'Недоступно')))}
+                    {isRestricted
+                      ? 'Запрещено'
+                      : canReveal 
+                        ? 'Раскрыть' 
+                        : (hasRevealed 
+                            ? 'Уже раскрыли' 
+                            : (!isMyTurn 
+                                ? 'Не ваш ход' 
+                                : (currentRound === 1 && key !== 'profession' 
+                                    ? 'Только профессия' 
+                                    : 'Недоступно')))}
                   </button>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useGame } from '@/contexts/GameContext';
-import { Skull, CheckCircle, AlertTriangle, Vote, Trophy, Clock, Users } from 'lucide-react';
+import { Skull, CheckCircle, AlertTriangle, Vote, Trophy, Clock, Users, Shield, Ban, Zap } from 'lucide-react';
 
 const VotingPanel = memo(() => {
   const { gameState, currentPlayer, castVote, processVotingResults, nextPhase } = useGame();
@@ -9,11 +9,21 @@ const VotingPanel = memo(() => {
   const [isVoting, setIsVoting] = useState(false); // Debounce state
 
   // Memoize computed values
-  const { alivePlayers, hasVoted, allVoted, isDefensePhase, isVotingPhase, isResultsPhase } = useMemo(() => {
+  const { alivePlayers, hasVoted, allVoted, isDefensePhase, isVotingPhase, isResultsPhase, canVote, hasDoubleVote, hasImmunity, immunePlayerId } = useMemo(() => {
     if (!gameState || !currentPlayer) {
-      return { alivePlayers: [], hasVoted: false, allVoted: false, isDefensePhase: false, isVotingPhase: false, isResultsPhase: false };
+      return { alivePlayers: [], hasVoted: false, allVoted: false, isDefensePhase: false, isVotingPhase: false, isResultsPhase: false, canVote: true, hasDoubleVote: false, hasImmunity: false, immunePlayerId: null };
     }
     const alive = gameState.players.filter(p => !p.isEliminated);
+    
+    // Check if current player cannot vote (from card 16)
+    const cannotVote = gameState.cannotVotePlayerId === currentPlayer.id;
+    
+    // Check if current player has double vote (from cards 1 or 15)
+    const hasDouble = gameState.doubleVotePlayerId === currentPlayer.id;
+    
+    // Check for immunity
+    const immune = gameState.immunityPlayerId;
+    
     return {
       alivePlayers: alive,
       hasVoted: currentPlayer.hasVoted,
@@ -21,6 +31,10 @@ const VotingPanel = memo(() => {
       isDefensePhase: gameState.phase === 'defense',
       isVotingPhase: gameState.phase === 'voting',
       isResultsPhase: gameState.phase === 'results',
+      canVote: !cannotVote,
+      hasDoubleVote: hasDouble,
+      hasImmunity: !!immune,
+      immunePlayerId: immune,
     };
   }, [gameState, currentPlayer]);
 
@@ -40,7 +54,11 @@ const VotingPanel = memo(() => {
 
   const handleVote = useCallback(async () => {
     if (isVoting) return; // Prevent double-clicks
+    if (!canVote) return; // Cannot vote due to card effect
     if (selectedTarget && !hasVoted && currentPlayer) {
+      // Cannot vote for immune player
+      if (selectedTarget === immunePlayerId) return;
+      
       setIsVoting(true);
       try {
         await castVote(currentPlayer.id, selectedTarget);
@@ -48,7 +66,7 @@ const VotingPanel = memo(() => {
         setTimeout(() => setIsVoting(false), 1000);
       }
     }
-  }, [selectedTarget, hasVoted, currentPlayer, castVote, isVoting]);
+  }, [selectedTarget, hasVoted, currentPlayer, castVote, isVoting, canVote, immunePlayerId]);
 
   // Memoize sorted players for results
   const sortedPlayers = useMemo(() => 
@@ -269,10 +287,53 @@ const VotingPanel = memo(() => {
         </div>
       )}
 
+      {/* Cannot vote indicator */}
+      {!canVote && !currentPlayer.isEliminated && (
+        <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-700/40">
+          <div className="flex items-center gap-2 text-red-400">
+            <Ban className="w-4 h-4" />
+            <span className="text-sm font-medium">ВАШ ГОЛОС ЗАБЛОКИРОВАН</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Карта действия лишила вас голоса в этом раунде</p>
+        </div>
+      )}
+      
+      {/* Double vote indicator */}
+      {hasDoubleVote && !hasVoted && canVote && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-900/20 border border-amber-700/40">
+          <div className="flex items-center gap-2 text-amber-400">
+            <Zap className="w-4 h-4" />
+            <span className="text-sm font-medium">ДВОЙНОЙ ГОЛОС</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Ваш голос будет считаться за два!</p>
+        </div>
+      )}
+      
+      {/* Immunity indicator */}
+      {hasImmunity && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-900/20 border border-emerald-700/40">
+          <div className="flex items-center gap-2 text-emerald-400">
+            <Shield className="w-4 h-4" />
+            <span className="text-sm font-medium">ЗАЩИТА АКТИВНА</span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {gameState?.players.find(p => p.id === immunePlayerId)?.name} защищён от изгнания в этом раунде
+          </p>
+        </div>
+      )}
+
       {currentPlayer.isEliminated ? (
         <p className="text-muted-foreground text-center py-4 text-sm sm:text-base">
           Вы изгнаны и не можете голосовать
         </p>
+      ) : !canVote ? (
+        <div className="text-center py-4">
+          <Ban className="w-10 h-10 sm:w-12 sm:h-12 text-red-400 mx-auto mb-3" />
+          <p className="text-red-400 font-display text-sm sm:text-base">ВЫ НЕ МОЖЕТЕ ГОЛОСОВАТЬ</p>
+          <p className="text-muted-foreground text-xs sm:text-sm mt-2">
+            Ожидаем голоса остальных игроков ({votingProgress.count}/{votingProgress.total})
+          </p>
+        </div>
       ) : hasVoted ? (
         <div className="text-center py-4">
           <CheckCircle className="w-10 h-10 sm:w-12 sm:h-12 text-success mx-auto mb-3" />
@@ -310,16 +371,21 @@ const VotingPanel = memo(() => {
               .filter(p => p.id !== currentPlayer.id)
               .map((player) => {
                 const canVoteFor = votablePlayersIds.has(player.id);
+                const isImmune = player.id === immunePlayerId;
+                const isDisabled = !canVoteFor || isImmune;
                 return (
                   <button
                     key={player.id}
-                    onClick={() => canVoteFor && setSelectedTarget(player.id)}
-                    disabled={!canVoteFor}
-                    className={`vote-button text-xs sm:text-sm py-2 sm:py-3 ${
+                    onClick={() => !isDisabled && setSelectedTarget(player.id)}
+                    disabled={isDisabled}
+                    className={`vote-button text-xs sm:text-sm py-2 sm:py-3 relative ${
                       selectedTarget === player.id ? 'selected' : ''
-                    } ${!canVoteFor ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                   >
                     {player.name}
+                    {isImmune && (
+                      <Shield className="absolute top-1 right-1 w-3 h-3 text-emerald-400" />
+                    )}
                   </button>
                 );
               })}

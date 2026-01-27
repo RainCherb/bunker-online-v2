@@ -1,4 +1,4 @@
-import { Bunker, Catastrophe, Characteristics } from '@/types/game';
+import { Bunker, Catastrophe, Characteristics, ActionCard } from '@/types/game';
 import { supabase } from '@/integrations/supabase/client';
 
 // Helper to load custom cards
@@ -735,28 +735,221 @@ export const FACTS: string[] = [
   'Панически боится крыс',
 ];
 
-export const ACTION_CARDS: string[] = [
-  'Может узнать одну характеристику любого игрока',
-  'Может защитить себя от одного голосования',
-  'Может поменяться одной характеристикой с другим игроком',
-  'Может заставить игрока раскрыть все характеристики',
-  'Может отменить голосование один раз',
-  'Может вернуть одного изгнанного игрока',
-  'Может голосовать дважды один раз за игру',
-  'Может скрыть одну свою характеристику до конца игры',
-  'Может узнать за кого голосовал любой игрок',
-  'Может пропустить один раунд голосования без последствий',
-  'Может изменить результат голосования одного игрока',
-  'Может обменять свою карту Багаж с другим игроком',
-  'Может узнать карту Факт любого игрока',
-  'Может заблокировать способность другого игрока',
-  'Может провести повторное голосование',
-  'Иммунитет от изгнания на один раунд',
-  'Может посмотреть все карты одного игрока',
-  'Двойной голос в следующем голосовании',
-  'Может отменить действие карты другого игрока',
-  'Может выбрать, кто будет говорить следующим',
+// New Action Cards with full effects
+export const ACTION_CARDS: ActionCard[] = [
+  {
+    id: 'action_1',
+    name: 'Двойной голос с риском',
+    description: 'На этот раунд ваш голос считается за два, но в следующем раунде вы автоматически получите на один голос больше.',
+    effect: 'double_vote_with_penalty',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_2',
+    name: 'Смена профессии',
+    description: 'Поменяйте себе карту профессии на новую из колоды.',
+    effect: 'new_profession',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_3',
+    name: 'Иммунитет',
+    description: 'Выберите любого игрока, кроме себя; этого игрока нельзя выгнать в этом раунде.',
+    effect: 'give_immunity',
+    requiresTarget: true,
+    targetType: 'other',
+  },
+  {
+    id: 'action_4',
+    name: 'Новое здоровье',
+    description: 'Выберите любого игрока (включая себя), поменяйте ему карту здоровья на новую из колоды.',
+    effect: 'new_health',
+    requiresTarget: true,
+    targetType: 'any',
+  },
+  {
+    id: 'action_5',
+    name: 'Новая фобия',
+    description: 'Выберите любого игрока (включая себя), поменяйте ему карту фобии на новую из колоды.',
+    effect: 'new_phobia',
+    requiresTarget: true,
+    targetType: 'any',
+  },
+  {
+    id: 'action_7',
+    name: 'Раунд биологии',
+    description: 'После активации этой карты игроки в этом раунде могут открывать только карты биологии.',
+    effect: 'restrict_biology',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_8',
+    name: 'Раунд хобби',
+    description: 'После активации этой карты игроки в этом раунде могут открывать только карты хобби.',
+    effect: 'restrict_hobby',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_9',
+    name: 'Раунд багажа',
+    description: 'После активации этой карты игроки в этом раунде могут открывать только карты багажа.',
+    effect: 'restrict_baggage',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_10',
+    name: 'Перемешать профессии',
+    description: 'Перемешайте все карты профессий (закрытые и открытые) игроков и раздайте в случайном порядке.',
+    effect: 'shuffle_professions',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_11',
+    name: 'Перемешать багаж',
+    description: 'Перемешайте все открытые карты багажа игроков и раздайте в случайном порядке.',
+    effect: 'shuffle_baggage',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_12',
+    name: 'Дополнительный багаж',
+    description: 'Получите еще одну карту багажа и сразу раскройте ее.',
+    effect: 'extra_baggage',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_13',
+    name: 'Дополнительная профессия',
+    description: 'Получите еще одну карту профессии и сразу раскройте ее.',
+    effect: 'extra_profession',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_15',
+    name: 'Усиление голоса',
+    description: 'Выберите любого игрока, кроме себя; в этом раунде голос этого игрока считается за два.',
+    effect: 'give_double_vote',
+    requiresTarget: true,
+    targetType: 'other',
+  },
+  {
+    id: 'action_16',
+    name: 'Блокировка голоса',
+    description: 'Выберите любого игрока; в этом раунде он не может голосовать.',
+    effect: 'block_vote',
+    requiresTarget: true,
+    targetType: 'any',
+  },
+  {
+    id: 'action_17',
+    name: 'Кража багажа',
+    description: 'Выберите любого игрока, вы крадете его багаж.',
+    effect: 'steal_baggage',
+    requiresTarget: true,
+    targetType: 'other',
+  },
+  {
+    id: 'action_18',
+    name: 'Воскрешение',
+    description: 'Выберите любого выбывшего игрока (кроме себя), вы возвращаете его в игру с раскрытыми картами на момент его выбывания.',
+    effect: 'revive_player',
+    requiresTarget: true,
+    targetType: 'eliminated',
+  },
+  {
+    id: 'action_19',
+    name: 'Связанные судьбы',
+    description: 'Выберите любого игрока. Если в этом раунде вас выгонят из бункера, этот игрок покинет бункер вместе с вами.',
+    effect: 'link_elimination',
+    requiresTarget: true,
+    targetType: 'other',
+  },
+  {
+    id: 'action_20',
+    name: 'Обмен биологией',
+    description: 'Выберите любого игрока с закрытой картой биологии, вы меняетесь с ним картами биологии.',
+    effect: 'swap_biology',
+    requiresTarget: true,
+    targetType: 'has_closed_biology',
+  },
+  {
+    id: 'action_21',
+    name: 'Отмена',
+    description: 'Заблокируйте действие любой только что открытой карты действий. У всех есть 4 сек. на отмену действия карты.',
+    effect: 'cancel',
+    requiresTarget: false,
+    targetType: 'none',
+    isCancelCard: true,
+  },
+  {
+    id: 'action_22',
+    name: 'Отмена',
+    description: 'Заблокируйте действие любой только что открытой карты действий. У всех есть 4 сек. на отмену действия карты.',
+    effect: 'cancel',
+    requiresTarget: false,
+    targetType: 'none',
+    isCancelCard: true,
+  },
+  {
+    id: 'action_23',
+    name: 'Идеальное здоровье',
+    description: 'Выберите любого игрока, кроме себя; его здоровье меняется на "Идеально здоров".',
+    effect: 'set_perfect_health',
+    requiresTarget: true,
+    targetType: 'other',
+  },
+  {
+    id: 'action_24',
+    name: 'Случайный багаж',
+    description: 'Поменяйте свой багаж на случайный из колоды.',
+    effect: 'random_baggage',
+    requiresTarget: false,
+    targetType: 'none',
+  },
+  {
+    id: 'action_25',
+    name: 'Переголосование',
+    description: 'Эту карту можно открыть только после итогов голосования. Все игроки должны переголосовать, выбирая других кандидатов.',
+    effect: 'force_revote',
+    requiresTarget: false,
+    targetType: 'none',
+    onlyAfterResults: true,
+  },
+  {
+    id: 'action_26',
+    name: 'Удаление фобии',
+    description: 'Выберите любого игрока, удалите фобию этого игрока из игры.',
+    effect: 'remove_phobia',
+    requiresTarget: true,
+    targetType: 'any',
+  },
 ];
+
+// Helper to get action card by ID
+export function getActionCardById(id: string): ActionCard | undefined {
+  return ACTION_CARDS.find(card => card.id === id);
+}
+
+// Helper to get random action card (for generating player cards)
+export function getRandomActionCard(exclude: string[] = []): ActionCard {
+  const available = ACTION_CARDS.filter(card => !exclude.includes(card.id));
+  if (available.length === 0) {
+    return ACTION_CARDS[Math.floor(Math.random() * ACTION_CARDS.length)];
+  }
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+// Legacy array for compatibility (just card names)
+export const ACTION_CARD_NAMES: string[] = ACTION_CARDS.map(card => card.name + ': ' + card.description);
 
 export const PHOBIAS: string[] = [
   'Клаустрофобия (боязнь замкнутых пространств)',
@@ -821,7 +1014,6 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   const hobbies = getCards('hobbies', HOBBIES);
   const baggage = getCards('baggage', BAGGAGE);
   const facts = getCards('facts', FACTS);
-  const actions = getCards('actions', ACTION_CARDS);
   const biologyTemplates = getCards('biology', BIOLOGY_TEMPLATES);
   const healthConditions = getCards('health', HEALTH_CONDITIONS_RAW);
   const phobias = getCards('phobias', PHOBIAS);
@@ -847,14 +1039,16 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
     return selected;
   };
   
-  const getUniqueActionCard = (usedSet: Set<string>): string => {
-    const available = actions.filter(card => !usedSet.has(card));
+  // Get unique action card - now returns card ID instead of full text
+  const getUniqueActionCardId = (usedSet: Set<string>): string => {
+    const available = ACTION_CARDS.filter(card => !usedSet.has(card.id));
     if (available.length === 0) {
-      return actions[Math.floor(Math.random() * actions.length)];
+      const card = ACTION_CARDS[Math.floor(Math.random() * ACTION_CARDS.length)];
+      return card.id;
     }
     const selected = available[Math.floor(Math.random() * available.length)];
-    usedSet.add(selected);
-    return selected;
+    usedSet.add(selected.id);
+    return selected.id;
   };
 
   // Generate biology with custom templates
@@ -877,8 +1071,9 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
   const characteristics: Characteristics[] = [];
   
   for (let i = 0; i < playerCount; i++) {
-    const actionCard1 = getUniqueActionCard(usedCards.actionCards);
-    const actionCard2 = getUniqueActionCard(usedCards.actionCards);
+    // Get unique action card IDs for this player
+    const actionCard1Id = getUniqueActionCardId(usedCards.actionCards);
+    const actionCard2Id = getUniqueActionCardId(usedCards.actionCards);
     
     characteristics.push({
       profession: getUniqueFromArray(professions, usedCards.profession),
@@ -888,8 +1083,8 @@ export function generateUniqueCharacteristicsForPlayers(playerCount: number): Ch
       hobby: getUniqueFromArray(hobbies, usedCards.hobby),
       baggage: getUniqueFromArray(baggage, usedCards.baggage),
       fact: getUniqueFromArray(facts, usedCards.fact),
-      actionCard1,
-      actionCard2,
+      actionCard1: actionCard1Id, // Now storing ID instead of text
+      actionCard2: actionCard2Id, // Now storing ID instead of text
     });
   }
   
@@ -903,20 +1098,16 @@ export function generateRandomCharacteristics(): Characteristics {
   const hobbies = getCards('hobbies', HOBBIES);
   const baggage = getCards('baggage', BAGGAGE);
   const facts = getCards('facts', FACTS);
-  const actions = getCards('actions', ACTION_CARDS);
   const phobias = getCards('phobias', PHOBIAS);
 
   const getRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
-  const getUniqueRandom = <T>(arr: T[], exclude: T): T => {
-    let result = getRandom(arr);
-    while (result === exclude && arr.length > 1) {
-      result = getRandom(arr);
-    }
-    return result;
-  };
   
-  const actionCard1 = getRandom(actions);
-  const actionCard2 = getUniqueRandom(actions, actionCard1);
+  // Get two unique action card IDs
+  const actionCard1 = getRandom(ACTION_CARDS);
+  let actionCard2 = getRandom(ACTION_CARDS);
+  while (actionCard2.id === actionCard1.id && ACTION_CARDS.length > 1) {
+    actionCard2 = getRandom(ACTION_CARDS);
+  }
   
   return {
     profession: getRandom(professions),
@@ -926,8 +1117,8 @@ export function generateRandomCharacteristics(): Characteristics {
     hobby: getRandom(hobbies),
     baggage: getRandom(baggage),
     fact: getRandom(facts),
-    actionCard1,
-    actionCard2,
+    actionCard1: actionCard1.id, // Now storing ID
+    actionCard2: actionCard2.id, // Now storing ID
   };
 }
 
