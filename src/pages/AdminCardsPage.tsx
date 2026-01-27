@@ -41,24 +41,6 @@ const AdminCardsPage = () => {
     
     // Merge loaded categories with defaults to ensure new categories are always present
     const mergeWithDefaults = (loaded: CardCategory[]): CardCategory[] => {
-      const loadedKeys = new Set(loaded.map(c => c.key));
-      const merged = [...loaded];
-      
-      // Add any missing categories from defaults
-      for (const defaultCat of initialCategories) {
-        if (!loadedKeys.has(defaultCat.key)) {
-          // Find position based on initialCategories order
-          const defaultIndex = initialCategories.findIndex(c => c.key === defaultCat.key);
-          merged.splice(defaultIndex, 0, defaultCat);
-        }
-      }
-      
-      return merged;
-    };
-
-    // Merge loaded categories with defaults to ensure new categories are always present
-    const mergeWithDefaults = (loaded: CardCategory[]): CardCategory[] => {
-      const loadedKeys = new Set(loaded.map(c => c.key));
       const result: CardCategory[] = [];
       
       // Go through defaults in order, use loaded data if exists, otherwise use default
@@ -110,8 +92,6 @@ const AdminCardsPage = () => {
       
       // Use defaults
       if (import.meta.env.DEV) console.log('[AdminCards] Using default cards');
-      setCategories(initialCategories);
-    };
       setCategories(initialCategories);
     };
     
