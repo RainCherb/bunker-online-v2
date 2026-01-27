@@ -9,14 +9,15 @@ const VotingPanel = memo(() => {
   const [isVoting, setIsVoting] = useState(false); // Debounce state
 
   // Memoize computed values
-  const { alivePlayers, hasVoted, allVoted, isDefensePhase, isVotingPhase, isResultsPhase, canVote, hasDoubleVote, hasImmunity, immunePlayerId } = useMemo(() => {
+  const { alivePlayers, hasVoted, allVoted, isDefensePhase, isVotingPhase, isResultsPhase, canVote, hasDoubleVote, hasImmunity, immunePlayerId, blockedVoterId } = useMemo(() => {
     if (!gameState || !currentPlayer) {
-      return { alivePlayers: [], hasVoted: false, allVoted: false, isDefensePhase: false, isVotingPhase: false, isResultsPhase: false, canVote: true, hasDoubleVote: false, hasImmunity: false, immunePlayerId: null };
+      return { alivePlayers: [], hasVoted: false, allVoted: false, isDefensePhase: false, isVotingPhase: false, isResultsPhase: false, canVote: true, hasDoubleVote: false, hasImmunity: false, immunePlayerId: null, blockedVoterId: null };
     }
     const alive = gameState.players.filter(p => !p.isEliminated);
     
     // Check if current player cannot vote (from card 16)
-    const cannotVote = gameState.cannotVotePlayerId === currentPlayer.id;
+    const blockedPlayer = gameState.cannotVotePlayerId;
+    const cannotVote = blockedPlayer === currentPlayer.id;
     
     // Check if current player has double vote (from cards 1 or 15)
     const hasDouble = gameState.doubleVotePlayerId === currentPlayer.id;
@@ -24,10 +25,16 @@ const VotingPanel = memo(() => {
     // Check for immunity
     const immune = gameState.immunityPlayerId;
     
+    // Calculate allVoted: all players except the blocked one must have voted
+    // (blocked player counts as already voted for this purpose)
+    const allHaveVoted = alive.every(p => 
+      p.hasVoted || p.id === blockedPlayer
+    );
+    
     return {
       alivePlayers: alive,
       hasVoted: currentPlayer.hasVoted,
-      allVoted: alive.every(p => p.hasVoted),
+      allVoted: allHaveVoted,
       isDefensePhase: gameState.phase === 'defense',
       isVotingPhase: gameState.phase === 'voting',
       isResultsPhase: gameState.phase === 'results',
@@ -35,6 +42,7 @@ const VotingPanel = memo(() => {
       hasDoubleVote: hasDouble,
       hasImmunity: !!immune,
       immunePlayerId: immune,
+      blockedVoterId: blockedPlayer,
     };
   }, [gameState, currentPlayer]);
 
@@ -75,13 +83,18 @@ const VotingPanel = memo(() => {
   );
 
   const votingProgress = useMemo(() => {
-    const voted = alivePlayers.filter(p => p.hasVoted).length;
+    // Count blocked voter as already voted
+    const voted = alivePlayers.filter(p => p.hasVoted || p.id === blockedVoterId).length;
+    // Total excludes the blocked voter since they can't vote
+    const totalVoters = blockedVoterId 
+      ? alivePlayers.filter(p => p.id !== blockedVoterId).length 
+      : alivePlayers.length;
     return {
       count: voted,
-      total: alivePlayers.length,
-      percentage: alivePlayers.length > 0 ? (voted / alivePlayers.length) * 100 : 0,
+      total: alivePlayers.length, // Still show total for display
+      percentage: totalVoters > 0 ? (voted / alivePlayers.length) * 100 : 0,
     };
-  }, [alivePlayers]);
+  }, [alivePlayers, blockedVoterId]);
 
   // Get who voted for whom (for open voting display)
   const votesMap = useMemo(() => {

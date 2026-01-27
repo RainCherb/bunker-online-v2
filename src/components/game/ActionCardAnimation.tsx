@@ -106,8 +106,9 @@ const ActionCardAnimation = ({
   useEffect(() => {
     if (!pendingAction || phase !== 'cancel_window') return;
     
-    // Only animate if not already flipped
-    if (isFlipped) return;
+    // Check if this action was already animated
+    const actionKey = `${pendingAction.playerId}-${pendingAction.cardId}`;
+    if (animatedActionIdRef.current === actionKey && isFlipped) return;
     
     // Light vibration when card appears
     triggerHaptic(80);
@@ -129,7 +130,7 @@ const ActionCardAnimation = ({
       clearTimeout(flipTimer);
       clearTimeout(contentTimer);
     };
-  }, [pendingAction?.playerId, pendingAction?.cardId]); // Only depend on identity of action
+  }, [pendingAction?.playerId, pendingAction?.cardId, phase, isFlipped]); // Include all used values
 
   // Handle cancel button click
   const handleCancel = useCallback(() => {

@@ -478,6 +478,11 @@ export function useGameDatabase() {
           is_eliminated: false,
           votes_against: 0,
           has_voted: false,
+          // Reset action card fields
+          used_action_cards: [],
+          extra_baggage: null,
+          extra_profession: null,
+          stolen_baggage_from: null,
         })
         .eq('id', player.id)
     );
@@ -511,6 +516,15 @@ export function useGameDatabase() {
         turn_has_revealed: false,
         tied_players: [],
         is_revote: false,
+        // Reset action card fields
+        pending_action: null,
+        round_restriction: null,
+        double_vote_player_id: null,
+        cannot_vote_player_id: null,
+        immunity_player_id: null,
+        linked_player_id: null,
+        linked_by_player_id: null,
+        penalty_next_round_player_id: null,
       })
       .eq('id', gameId);
 
