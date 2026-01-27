@@ -378,8 +378,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return ['profession'];
     }
 
-    // Round 2+: Any unrevealed characteristic
-    return CHARACTERISTICS_ORDER.filter(c => !revealed.includes(c));
+    // Round 2+: Any unrevealed characteristic (excluding restricted by action cards)
+    let available = CHARACTERISTICS_ORDER.filter(c => !revealed.includes(c));
+    
+    // Filter out restricted characteristic from action cards (cards 7, 8, 9)
+    if (gameState.roundRestriction) {
+      available = available.filter(c => c !== gameState.roundRestriction);
+    }
+    
+    return available;
   }, [gameState]);
 
   // Check if can reveal a specific characteristic
@@ -402,6 +409,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Round 1: Only profession allowed
     if (gameState.currentRound === 1) {
       return characteristic === 'profession';
+    }
+
+    // Check for round restriction from action cards (cards 7, 8, 9)
+    if (gameState.roundRestriction) {
+      if (gameState.roundRestriction === 'biology' && characteristic === 'biology') return false;
+      if (gameState.roundRestriction === 'hobby' && characteristic === 'hobby') return false;
+      if (gameState.roundRestriction === 'baggage' && characteristic === 'baggage') return false;
     }
 
     return true;
