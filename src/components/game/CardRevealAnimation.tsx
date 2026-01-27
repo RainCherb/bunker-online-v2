@@ -5,6 +5,17 @@ import { Sparkles, Star } from 'lucide-react';
 
 // To restore old animation, rename CardRevealAnimation.backup.tsx to CardRevealAnimation.tsx
 
+// Haptic feedback helper - triggers vibration on supported devices
+const triggerHaptic = (pattern: number | number[]) => {
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+    try {
+      navigator.vibrate(pattern);
+    } catch {
+      // Vibration not supported or blocked
+    }
+  }
+};
+
 interface CardRevealAnimationProps {
   playerName: string;
   characteristicKey: keyof Characteristics;
@@ -28,10 +39,24 @@ const CardRevealAnimation = ({
     if (isVisible) {
       setIsFlipped(false);
       setShowContent(false);
+      
+      // Light vibration when card appears
+      triggerHaptic(50);
+      
       // Start flip after card appears
-      const flipTimer = setTimeout(() => setIsFlipped(true), 600);
+      const flipTimer = setTimeout(() => {
+        setIsFlipped(true);
+        // Medium vibration when card flips
+        triggerHaptic([30, 50, 80]);
+      }, 600);
+      
       // Show content after flip completes
-      const contentTimer = setTimeout(() => setShowContent(true), 1200);
+      const contentTimer = setTimeout(() => {
+        setShowContent(true);
+        // Light vibration when content reveals
+        triggerHaptic(30);
+      }, 1200);
+      
       return () => {
         clearTimeout(flipTimer);
         clearTimeout(contentTimer);
