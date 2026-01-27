@@ -216,6 +216,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      recover_player: {
+        Args: { p_old_player_id: string; p_game_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

@@ -10,6 +10,7 @@ import GamePage from "./pages/GamePage";
 import RulesPage from "./pages/RulesPage";
 import JoinPage from "./pages/JoinPage";
 import AdminCardsPage from "./pages/AdminCardsPage";
+import RecoveryPage from "./pages/RecoveryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/lobby/:gameId" element={<LobbyPage />} />
             <Route path="/game/:gameId" element={<GamePage />} />
             <Route path="/rules" element={<RulesPage />} />
+            <Route path="/recover/:token" element={<RecoveryPage />} />
             <Route path="/327872337HJF77GGFHGHF557725LVB66554" element={<AdminCardsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

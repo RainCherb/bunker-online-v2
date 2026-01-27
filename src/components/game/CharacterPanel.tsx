@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } from '@/types/game';
-import { X, Eye, Lock, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 
 // Modal for showing full card details
@@ -71,6 +71,119 @@ const CardDetailModal = ({ isOpen, onClose, cardType, cardValue }: CardDetailMod
   );
 };
 
+// Recovery link modal
+interface RecoveryLinkModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  recoveryLink: string;
+}
+
+const RecoveryLinkModal = ({ isOpen, onClose, recoveryLink }: RecoveryLinkModalProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(recoveryLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = recoveryLink;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: 'spring', damping: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card border-2 border-secondary/50 rounded-xl p-6 max-w-md w-full shadow-2xl"
+            style={{ boxShadow: '0 0 40px hsl(var(--secondary) / 0.3)' }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-secondary" />
+                <h3 className="font-display text-lg text-secondary uppercase tracking-wider">
+                  Восстановление игрока
+                </h3>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-secondary/50 to-transparent mb-4" />
+
+            {/* Instructions */}
+            <p className="text-sm text-muted-foreground mb-4">
+              Отправьте эту ссылку игроку, который потерял доступ к игре. После перехода по ссылке он автоматически вернётся на своего персонажа.
+            </p>
+
+            {/* Link display */}
+            <div className="p-3 rounded-lg bg-muted/50 border border-border mb-4">
+              <p className="text-xs text-foreground break-all font-mono">
+                {recoveryLink}
+              </p>
+            </div>
+
+            {/* Copy button */}
+            <button
+              onClick={handleCopy}
+              className={`w-full px-4 py-3 rounded-lg font-display flex items-center justify-center gap-2 transition-colors ${
+                copied 
+                  ? 'bg-green-500/20 border border-green-500 text-green-500'
+                  : 'bg-secondary/20 border border-secondary text-secondary hover:bg-secondary/30'
+              }`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Скопировано!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Копировать ссылку
+                </>
+              )}
+            </button>
+
+            {/* Warning */}
+            <p className="text-xs text-muted-foreground text-center mt-4">
+              ⚠️ Ссылка работает один раз. После использования сгенерируйте новую при необходимости.
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 interface CharacterPanelProps {
   player: Player;
   isOwn: boolean;
@@ -93,6 +206,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
   
   // Debounce state to prevent double-clicks
   const [isRevealing, setIsRevealing] = useState(false);
+  
+  // Recovery link modal state
+  const [recoveryLink, setRecoveryLink] = useState<string | null>(null);
   
   const isTurnPhase = gameState?.phase === 'turn';
   const currentTurnPlayer = getCurrentTurnPlayer();
@@ -125,6 +241,14 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
     }
   }, [isOwn]);
 
+  // Generate recovery link for host to share with disconnected player
+  const handleGenerateRecoveryLink = useCallback(() => {
+    if (!gameState) return;
+    const token = btoa(`${gameState.id}|${player.id}`);
+    const link = `${window.location.origin}/recover/${token}`;
+    setRecoveryLink(link);
+  }, [gameState, player.id]);
+
   // Get current card value from player (avoids stale data)
   const getCardValue = useCallback((key: keyof Characteristics) => {
     return player.characteristics[key] || '';
@@ -150,14 +274,26 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
             ) : 'Информация об игроке'}
           </p>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="p-2 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Recovery button - only for host viewing other players */}
+          {!isOwn && currentPlayer?.isHost && (
+            <button
+              onClick={handleGenerateRecoveryLink}
+              title="Восстановить игрока"
+              className="p-2 min-w-[44px] min-h-[44px] rounded-lg bg-secondary/20 border border-secondary/50 text-secondary hover:bg-secondary/30 transition-colors flex items-center justify-center"
+            >
+              <UserPlus className="w-5 h-5" />
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 min-w-[44px] min-h-[44px] rounded-lg hover:bg-muted transition-colors flex items-center justify-center"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Turn indicator */}
@@ -295,6 +431,13 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
         onClose={() => setSelectedCard(null)}
         cardType={selectedCard?.type || null}
         cardValue={selectedCard ? getCardValue(selectedCard.type) : ''}
+      />
+
+      {/* Recovery Link Modal */}
+      <RecoveryLinkModal
+        isOpen={!!recoveryLink}
+        onClose={() => setRecoveryLink(null)}
+        recoveryLink={recoveryLink || ''}
       />
     </div>
   );
