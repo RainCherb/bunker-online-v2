@@ -147,6 +147,32 @@ const PlayerDetailModal = ({ player, onClose }: PlayerDetailModalProps) => {
                 </div>
               );
             })}
+            
+            {/* Extra Baggage from card 12 */}
+            {player.extraBaggage && (
+              <div className="p-3 rounded-lg border bg-amber-500/10 border-amber-500/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Eye className="w-3 h-3 text-amber-500" />
+                  <span className="text-xs font-display uppercase text-amber-500">
+                    Дополнительный багаж
+                  </span>
+                </div>
+                <p className="text-sm text-amber-300">{player.extraBaggage}</p>
+              </div>
+            )}
+            
+            {/* Extra Profession from card 13 */}
+            {player.extraProfession && (
+              <div className="p-3 rounded-lg border bg-amber-500/10 border-amber-500/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <Eye className="w-3 h-3 text-amber-500" />
+                  <span className="text-xs font-display uppercase text-amber-500">
+                    Дополнительная профессия
+                  </span>
+                </div>
+                <p className="text-sm text-amber-300">{player.extraProfession}</p>
+              </div>
+            )}
           </div>
 
           {/* Recovery section for host */}

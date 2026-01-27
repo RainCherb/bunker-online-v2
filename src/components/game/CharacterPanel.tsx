@@ -489,6 +489,36 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
             </div>
           );
         })}
+        
+        {/* Extra Baggage from card 12 */}
+        {player.extraBaggage && (
+          <div className="p-3 sm:p-4 rounded-lg border-2 border-amber-500/50 bg-amber-500/10">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" />
+              <span className="font-display text-xs sm:text-sm text-amber-400">
+                Дополнительный багаж
+              </span>
+            </div>
+            <p className="text-sm sm:text-base font-medium text-amber-300">
+              {player.extraBaggage}
+            </p>
+          </div>
+        )}
+        
+        {/* Extra Profession from card 13 */}
+        {player.extraProfession && (
+          <div className="p-3 sm:p-4 rounded-lg border-2 border-amber-500/50 bg-amber-500/10">
+            <div className="flex items-center gap-1 sm:gap-2 mb-1">
+              <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500 flex-shrink-0" />
+              <span className="font-display text-xs sm:text-sm text-amber-400">
+                Дополнительная профессия
+              </span>
+            </div>
+            <p className="text-sm sm:text-base font-medium text-amber-300">
+              {player.extraProfession}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Legend */}
