@@ -54,21 +54,22 @@ const dbPlayerToPlayer = (row: any): Player => ({
 });
 
 // Transform pending_action JSONB to PendingAction type
+// Note: SQL stores camelCase fields in JSONB (cardId, playerId, etc.)
 const dbPendingActionToPendingAction = (row: any): PendingAction | null => {
   if (!row) return null;
   return {
-    cardId: row.card_id,
-    cardName: row.card_name,
-    cardDescription: row.card_description,
-    playerId: row.player_id,
-    playerName: row.player_name,
+    cardId: row.cardId,
+    cardName: row.cardName,
+    cardDescription: row.cardDescription,
+    playerId: row.playerId,
+    playerName: row.playerName,
     effect: row.effect,
-    requiresTarget: row.requires_target,
-    targetType: row.target_type,
-    targetId: row.target_id || null,
-    expiresAt: new Date(row.expires_at),
-    isCancelled: row.is_cancelled || false,
-    cancelledByPlayerId: row.cancelled_by_player_id || null,
+    requiresTarget: row.requiresTarget,
+    targetType: row.targetType,
+    targetId: row.targetId || null,
+    expiresAt: new Date(row.expiresAt),
+    isCancelled: row.isCancelled || false,
+    cancelledByPlayerId: row.cancelledByPlayerId || null,
   };
 };
 
@@ -389,6 +390,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return available;
   }, [gameState]);
 
+  // Check if characteristic is an action card
+  const isActionCard = useCallback((characteristic: keyof Characteristics): boolean => {
+    return characteristic === 'actionCard1' || characteristic === 'actionCard2';
+  }, []);
+
   // Check if can reveal a specific characteristic
   const canRevealCharacteristic = useCallback((playerId: string, characteristic: keyof Characteristics): boolean => {
     if (!gameState) return false;
@@ -403,10 +409,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const currentTurnPlayer = getCurrentTurnPlayer();
     if (currentTurnPlayer?.id !== playerId) return false;
 
-    // Check if already revealed this turn
+    // Action cards can be revealed anytime during your turn (don't require turn not revealed)
+    // and don't count toward the "one card per turn" limit
+    if (isActionCard(characteristic)) {
+      // Action cards can be revealed anytime during turn phase
+      return gameState.phase === 'turn';
+    }
+
+    // Non-action cards: Check if already revealed a regular card this turn
     if (turnHasRevealed) return false;
 
-    // Round 1: Only profession allowed
+    // Round 1: Only profession allowed (not action cards here - they're handled above)
     if (gameState.currentRound === 1) {
       return characteristic === 'profession';
     }
@@ -419,7 +432,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     return true;
-  }, [gameState, getCurrentTurnPlayer, turnHasRevealed]);
+  }, [gameState, getCurrentTurnPlayer, turnHasRevealed, isActionCard]);
 
   // Reveal a characteristic
   const revealCharacteristic = useCallback(async (playerId: string, characteristic: keyof Characteristics): Promise<boolean> => {
@@ -432,19 +445,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const success = await db.revealCharacteristic(playerId, characteristic, player.revealedCharacteristics);
     
     if (success) {
-      // Mark that this turn has revealed and set new timer (5 minutes after reveal)
-      const newEndsAt = new Date(Date.now() + 5 * 60 * 1000);
-      if (import.meta.env.DEV) console.log('[Reveal] Card revealed, setting 5 min timer');
-      
-      // Use atomic function to update turn state
-      await supabase.rpc('mark_turn_revealed', {
-        p_game_id: gameState.id,
-        p_phase_ends_at: newEndsAt.toISOString()
-      });
+      // Action cards don't count as turn reveal - player still needs to reveal a regular card
+      if (!isActionCard(characteristic)) {
+        // Mark that this turn has revealed and set new timer (5 minutes after reveal)
+        const newEndsAt = new Date(Date.now() + 5 * 60 * 1000);
+        if (import.meta.env.DEV) console.log('[Reveal] Regular card revealed, setting 5 min timer');
+        
+        // Use atomic function to update turn state
+        await supabase.rpc('mark_turn_revealed', {
+          p_game_id: gameState.id,
+          p_phase_ends_at: newEndsAt.toISOString()
+        });
+      } else {
+        if (import.meta.env.DEV) console.log('[Reveal] Action card revealed - does not count as turn');
+      }
     }
     
     return success;
-  }, [gameState, db, canRevealCharacteristic]);
+  }, [gameState, db, canRevealCharacteristic, isActionCard]);
 
   // Auto reveal a random characteristic (for timeout)
   const autoRevealRandomCharacteristic = useCallback(async (playerId: string): Promise<void> => {
