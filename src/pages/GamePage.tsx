@@ -60,6 +60,8 @@ const GamePage = () => {
   const actionCards = useActionCards({ gameState, currentPlayer });
 
   // Detect new card reveals - works for ALL players via realtime updates
+  // NOTE: Action cards (actionCard1, actionCard2) use ActionCardAnimation via pendingAction,
+  // so we skip them here and only show CardRevealAnimation for regular characteristics
   useEffect(() => {
     if (!gameState?.players) return;
     
@@ -86,16 +88,16 @@ const GamePage = () => {
           if (!prevPlayer.revealedCharacteristics.includes(charKey)) {
             // New reveal detected!
             const typedKey = charKey as keyof Characteristics;
+            
+            // Skip action cards - they use ActionCardAnimation via pendingAction
+            if (typedKey === 'actionCard1' || typedKey === 'actionCard2') {
+              if (import.meta.env.DEV) console.log('[Animation] Skipping action card reveal (uses ActionCardAnimation):', player.name, typedKey);
+              continue;
+            }
+            
             if (import.meta.env.DEV) console.log('[Animation] New reveal detected:', player.name, typedKey);
             
-            // For action cards, resolve ID to name + description
-            let displayValue = player.characteristics[typedKey] || '';
-            if (typedKey === 'actionCard1' || typedKey === 'actionCard2') {
-              const card = getActionCardById(displayValue);
-              if (card) {
-                displayValue = `${card.name}\n\n${card.description}`;
-              }
-            }
+            const displayValue = player.characteristics[typedKey] || '';
             
             setRevealAnimation({
               playerName: player.name,

@@ -4,6 +4,7 @@ import { Player, CHARACTERISTIC_NAMES, CHARACTERISTICS_ORDER, Characteristics } 
 import { X, Eye, Lock, AlertCircle, CheckCircle, Info, UserPlus, Copy, Check, Ban, Zap } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 import { getActionCardById } from '@/data/gameData';
+import { useActionCards } from '@/hooks/useActionCards';
 
 // Modal for showing full card details
 interface CardDetailModalProps {
@@ -216,6 +217,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
     getAvailableCharacteristics,
     hasRevealedThisTurn
   } = useGame();
+  
+  // Action cards hook for activating action cards
+  const actionCards = useActionCards({ gameState, currentPlayer });
 
   // State for card detail modal (only store type, get value from player to avoid stale data)
   const [selectedCard, setSelectedCard] = useState<{ type: keyof Characteristics } | null>(null);
@@ -243,16 +247,32 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
 
   const handleReveal = useCallback(async (key: keyof Characteristics) => {
     if (isRevealing) return; // Prevent double-clicks
-    if (canRevealCharacteristic(player.id, key)) {
+    
+    // For action cards, use activateCard instead of revealCharacteristic
+    const isActionCard = key === 'actionCard1' || key === 'actionCard2';
+    
+    if (isActionCard) {
+      // Check if can activate this action card
+      if (!actionCards.canActivateCard(key)) return;
+      
       setIsRevealing(true);
       try {
-        await revealCharacteristic(player.id, key);
+        await actionCards.activateCard(key);
       } finally {
-        // Reset after a delay to prevent rapid re-clicks
         setTimeout(() => setIsRevealing(false), 1000);
       }
+    } else {
+      // Regular characteristic reveal
+      if (canRevealCharacteristic(player.id, key)) {
+        setIsRevealing(true);
+        try {
+          await revealCharacteristic(player.id, key);
+        } finally {
+          setTimeout(() => setIsRevealing(false), 1000);
+        }
+      }
     }
-  }, [canRevealCharacteristic, player.id, revealCharacteristic, isRevealing]);
+  }, [canRevealCharacteristic, player.id, revealCharacteristic, isRevealing, actionCards]);
 
   const handleCardClick = useCallback((key: keyof Characteristics) => {
     if (isOwn) {
@@ -402,19 +422,30 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
           const isRevealed = player.revealedCharacteristics.includes(key);
           const displayValue = getDisplayValue(key);
           const isRestricted = roundRestriction === key;
-          const canReveal = isOwn && canRevealCharacteristic(player.id, key) && !isRestricted;
-          const isAvailable = availableChars.includes(key) && !isRestricted;
           const isActionCard = key === 'actionCard1' || key === 'actionCard2';
+          
+          // For action cards: check if can activate (not used, not voting phase, etc.)
+          // For regular cards: check if can reveal
+          const isCardUsed = isActionCard && actionCards.isCardUsed(key);
+          const canActivateAction = isActionCard && isOwn && actionCards.canActivateCard(key);
+          const canRevealRegular = !isActionCard && isOwn && canRevealCharacteristic(player.id, key) && !isRestricted;
+          const canReveal = isActionCard ? canActivateAction : canRevealRegular;
+          
+          // For styling: action cards are "available" if not used (can be used any time except voting)
+          // regular cards use existing logic (only during own turn)
+          const isAvailable = isActionCard 
+            ? !isCardUsed && isTurnPhase // Action cards available during turn phase
+            : availableChars.includes(key) && !isRestricted;
 
           return (
             <div
               key={key}
               className={`p-3 sm:p-4 rounded-lg border-2 transition-colors ${
                 isActionCard
-                  ? isRevealed
-                    ? 'border-red-500/50 bg-red-500/10'
-                    : isAvailable && isMyTurn && !hasRevealed
-                      ? 'border-red-400/50 bg-red-900/20'
+                  ? isCardUsed
+                    ? 'border-gray-600/50 bg-gray-800/30' // Used action card - gray
+                    : canActivateAction
+                      ? 'border-red-400/50 bg-red-900/20' // Available action card
                       : 'border-red-900/30 bg-red-950/20'
                   : isRevealed
                     ? 'border-primary/50 bg-primary/10'
@@ -428,7 +459,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                   <div className="flex items-center gap-1 sm:gap-2 mb-1">
                     {isActionCard ? (
                       <Zap className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 ${
-                        isRevealed ? 'text-red-500' : 'text-red-400/60'
+                        isCardUsed ? 'text-gray-500' : 'text-red-400/60'
                       }`} />
                     ) : isRevealed ? (
                       <Eye className="w-3 h-3 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
@@ -436,7 +467,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                       <Lock className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground flex-shrink-0" />
                     )}
                     <span className={`font-display text-xs sm:text-sm truncate ${
-                      isActionCard ? 'text-red-400' : 'text-muted-foreground'
+                      isActionCard 
+                        ? isCardUsed ? 'text-gray-500 line-through' : 'text-red-400'
+                        : 'text-muted-foreground'
                     }`}>
                       {CHARACTERISTIC_NAMES[key]}
                     </span>
@@ -446,7 +479,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                       onClick={() => handleCardClick(key)}
                       className={`text-sm sm:text-base font-medium text-left w-full truncate hover:text-primary transition-colors ${
                         isActionCard 
-                          ? isRevealed ? 'text-red-300' : 'text-red-400/70'
+                          ? isCardUsed ? 'text-gray-500' : 'text-red-400/70'
                           : isRevealed ? 'text-foreground' : 'text-muted-foreground'
                       } ${isOwn ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
                       title={isOwn ? 'Нажмите для подробностей' : undefined}
@@ -458,7 +491,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                   )}
                 </div>
 
-                {isOwn && !isRevealed && (
+                {/* Regular cards: show button if not revealed */}
+                {/* Action cards: show button if not used */}
+                {isOwn && (isActionCard ? !isCardUsed : !isRevealed) && (
                   <button
                     onClick={() => handleReveal(key)}
                     disabled={!canReveal || isRevealing}
@@ -472,17 +507,19 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
                           : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }`}
                   >
-                    {isRestricted
-                      ? 'Запрещено'
-                      : canReveal 
-                        ? 'Раскрыть' 
-                        : (hasRevealed 
-                            ? 'Уже раскрыли' 
-                            : (!isMyTurn 
-                                ? 'Не ваш ход' 
-                                : (currentRound === 1 && key !== 'profession' 
-                                    ? 'Только профессия' 
-                                    : 'Недоступно')))}
+                  {isActionCard
+                      ? (canReveal ? 'Активировать' : (isCardUsed ? 'Использовано' : (gameState?.phase === 'voting' ? 'Нельзя в голосовании' : 'Недоступно')))
+                      : (isRestricted
+                          ? 'Запрещено'
+                          : canReveal 
+                            ? 'Раскрыть' 
+                            : (hasRevealed 
+                                ? 'Уже раскрыли' 
+                                : (!isMyTurn 
+                                    ? 'Не ваш ход' 
+                                    : (currentRound === 1 && key !== 'profession' 
+                                        ? 'Только профессия' 
+                                        : 'Недоступно'))))}
                   </button>
                 )}
               </div>

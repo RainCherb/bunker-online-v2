@@ -530,6 +530,18 @@ const ActionCardAnimation = ({
             </motion.div>
           )}
           
+          {/* No valid targets message - for action owner */}
+          {phase === 'target_selection' && isMyAction && validTargets.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="absolute bottom-24 px-8 py-4 rounded-xl bg-gray-800/90 border-2 border-red-900/40 text-gray-300 font-display text-base flex items-center gap-3"
+            >
+              <Ban className="w-5 h-5 text-red-500" />
+              <span>Нет доступных целей для этой карты</span>
+            </motion.div>
+          )}
+          
           {/* Waiting for target selection - for other players */}
           {phase === 'target_selection' && !isMyAction && (
             <motion.div
