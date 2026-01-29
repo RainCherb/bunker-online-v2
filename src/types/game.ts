@@ -70,7 +70,7 @@ export interface GameState {
   isRevote: boolean; // Whether this is a revote round
   // Action card state
   pendingAction: PendingAction | null;
-  roundRestriction: 'biology' | 'hobby' | 'baggage' | null; // Cards 7,8,9 restrict reveals
+  roundRestrictions: ('biology' | 'hobby' | 'baggage')[]; // Cards 7,8,9 restrict reveals (now array)
   doubleVotePlayerId: string | null; // Card 1,15 - player with double vote
   cannotVotePlayerId: string | null; // Card 16 - player who cannot vote
   immunityPlayerId: string | null; // Card 3 - player immune from elimination

@@ -239,10 +239,23 @@ const VotingPanel = memo(() => {
               <span className="font-display">НИЧЬЯ!</span>
             </div>
             <p className="text-sm text-muted-foreground mt-2">
-              Будет дано 3 минуты на дополнительное обсуждение, после чего переголосование среди:{' '}
-              <span className="text-foreground font-medium">
-                {tiedPlayers.map(p => p.name).join(' и ')}
-              </span>
+              {gameState.isRevote ? (
+                // Second tie - both will be eliminated
+                <>
+                  Повторная ничья! Все игроки с одинаковым числом голосов будут изгнаны:{' '}
+                  <span className="text-destructive font-medium">
+                    {tiedPlayers.map(p => p.name).join(' и ')}
+                  </span>
+                </>
+              ) : (
+                // First tie - will have revote
+                <>
+                  Будет дано 3 минуты на дополнительное обсуждение, после чего переголосование среди:{' '}
+                  <span className="text-foreground font-medium">
+                    {tiedPlayers.map(p => p.name).join(' и ')}
+                  </span>
+                </>
+              )}
             </p>
           </div>
         )}
@@ -250,13 +263,32 @@ const VotingPanel = memo(() => {
         {currentPlayer.isHost && eliminatedPlayer && eliminatedPlayer.votesAgainst > 0 && (
           <div className="text-center">
             {isTie ? (
-              <button onClick={processVotingResults} className="bunker-button w-full">
-                Начать переголосование
-              </button>
+              gameState.isRevote ? (
+                // Second tie - eliminate all
+                <>
+                  <p className="text-destructive font-display mb-4 text-sm sm:text-base">
+                    {tiedPlayers.map(p => p.name).join(' и ')} изгоняются из бункера!
+                  </p>
+                  <button onClick={processVotingResults} className="bunker-button-danger">
+                    Изгнать всех и продолжить
+                  </button>
+                </>
+              ) : (
+                // First tie - start revote
+                <button onClick={processVotingResults} className="bunker-button w-full">
+                  Начать переголосование
+                </button>
+              )
             ) : (
               <>
                 <p className="text-destructive font-display mb-4 text-sm sm:text-base">
                   {eliminatedPlayer.name} изгоняется из бункера!
+                  {/* Show linked fate notification */}
+                  {gameState.linkedByPlayerId === eliminatedPlayer.id && gameState.linkedPlayerId && (
+                    <span className="block mt-2 text-warning">
+                      Связанные судьбы: {getPlayerName(gameState.linkedPlayerId)} тоже покидает игру!
+                    </span>
+                  )}
                 </p>
                 <button onClick={processVotingResults} className="bunker-button-danger">
                   Изгнать и продолжить

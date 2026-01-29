@@ -158,7 +158,21 @@ const ActionCardAnimation = ({
     size: 3 + Math.random() * 6,
   })), []);
 
+  // Debug logging
+  if (import.meta.env.DEV && pendingAction) {
+    console.log('[ActionCardAnimation] pendingAction:', {
+      cardName: pendingAction.cardName,
+      cardDescription: pendingAction.cardDescription,
+      playerName: pendingAction.playerName,
+      effect: pendingAction.effect,
+    });
+  }
+
   if (!pendingAction) return null;
+
+  // Fallback for missing data
+  const cardName = pendingAction.cardName || 'Карта действия';
+  const cardDescription = pendingAction.cardDescription || 'Эффект карты применяется...';
 
   return (
     <AnimatePresence>
@@ -386,7 +400,7 @@ const ActionCardAnimation = ({
                     >
                       <div className="px-5 py-2 rounded-full bg-gradient-to-r from-red-900/30 via-red-800/40 to-red-900/30 border border-red-900/60">
                         <span className="font-display text-red-500 text-sm sm:text-base uppercase tracking-[0.15em]">
-                          {pendingAction.cardName}
+                          {cardName}
                         </span>
                       </div>
                     </motion.div>
@@ -423,7 +437,7 @@ const ActionCardAnimation = ({
                         transition={{ duration: 2, repeat: Infinity }}
                         className="relative z-10 text-gray-300 text-sm sm:text-base text-center leading-relaxed"
                       >
-                        {pendingAction.cardDescription}
+                        {cardDescription}
                       </motion.p>
                     </motion.div>
 

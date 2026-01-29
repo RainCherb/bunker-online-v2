@@ -236,8 +236,8 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
   const hasRevealed = isOwn ? hasRevealedThisTurn() : false;
   const currentRound = gameState?.currentRound || 1;
   
-  // Check for round restrictions from action cards
-  const roundRestriction = gameState?.roundRestriction;
+  // Check for round restrictions from action cards (now an array)
+  const roundRestrictions = gameState?.roundRestrictions || [];
 
   // Memoize available characteristics
   const availableChars = useMemo(() => 
@@ -399,7 +399,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
       )}
       
       {/* Round restriction warning */}
-      {roundRestriction && isOwn && isTurnPhase && (
+      {roundRestrictions.length > 0 && isOwn && isTurnPhase && (
         <div className="mb-4 p-3 rounded-lg bg-red-900/20 border border-red-700/40 flex-shrink-0">
           <div className="flex items-center gap-2 text-red-400">
             <Ban className="w-4 h-4" />
@@ -408,9 +408,9 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
           <p className="text-xs text-muted-foreground mt-1">
             В этом раунде запрещено раскрывать: {' '}
             <span className="text-red-400 font-medium">
-              {roundRestriction === 'biology' && 'Биологию'}
-              {roundRestriction === 'hobby' && 'Хобби'}
-              {roundRestriction === 'baggage' && 'Багаж'}
+              {roundRestrictions.map(r => 
+                r === 'biology' ? 'Биологию' : r === 'hobby' ? 'Хобби' : 'Багаж'
+              ).join(', ')}
             </span>
           </p>
         </div>
@@ -421,7 +421,7 @@ const CharacterPanel = memo(({ player, isOwn, onClose }: CharacterPanelProps) =>
         {CHARACTERISTICS_ORDER.map((key) => {
           const isRevealed = player.revealedCharacteristics.includes(key);
           const displayValue = getDisplayValue(key);
-          const isRestricted = roundRestriction === key;
+          const isRestricted = roundRestrictions.includes(key as any);
           const isActionCard = key === 'actionCard1' || key === 'actionCard2';
           
           // For action cards: check if can activate (not used, not voting phase, etc.)

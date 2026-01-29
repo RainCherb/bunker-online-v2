@@ -518,7 +518,7 @@ export function useGameDatabase() {
         is_revote: false,
         // Reset action card fields
         pending_action: null,
-        round_restriction: null,
+        round_restriction: [], // Now an array
         double_vote_player_id: null,
         cannot_vote_player_id: null,
         immunity_player_id: null,

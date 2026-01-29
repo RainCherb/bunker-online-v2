@@ -60,6 +60,29 @@ export function useActionCards({ gameState, currentPlayer }: UseActionCardsProps
       return false;
     }
     
+    // Check if card requires target and there are valid targets available
+    if (card.requiresTarget) {
+      const alivePlayers = gameState.players.filter(p => !p.isEliminated);
+      
+      switch (card.targetType) {
+        case 'other':
+          // Need at least one other alive player
+          if (alivePlayers.filter(p => p.id !== currentPlayer.id).length === 0) return false;
+          break;
+        case 'any':
+          // Always has at least self
+          break;
+        case 'eliminated':
+          // Need at least one eliminated player
+          if (gameState.players.filter(p => p.isEliminated).length === 0) return false;
+          break;
+        case 'has_closed_biology':
+          // Need at least one player with unrevealed biology (except self)
+          if (alivePlayers.filter(p => p.id !== currentPlayer.id && !p.revealedCharacteristics.includes('biology')).length === 0) return false;
+          break;
+      }
+    }
+    
     return true;
   }, [gameState, currentPlayer, isCardUsed]);
 

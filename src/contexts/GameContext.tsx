@@ -57,6 +57,9 @@ const dbPlayerToPlayer = (row: any): Player => ({
 // Note: SQL stores camelCase fields in JSONB (cardId, playerId, etc.)
 const dbPendingActionToPendingAction = (row: any): PendingAction | null => {
   if (!row) return null;
+  if (import.meta.env.DEV) {
+    console.log('[GameContext] Raw pending_action from DB:', row);
+  }
   return {
     cardId: row.cardId,
     cardName: row.cardName,
@@ -99,7 +102,7 @@ const dbGameToGameState = (gameRow: any, playerRows: any[]): GameState => ({
   isRevote: gameRow.is_revote || false,
   // Action card state
   pendingAction: dbPendingActionToPendingAction(gameRow.pending_action),
-  roundRestriction: gameRow.round_restriction || null,
+  roundRestrictions: gameRow.round_restriction || [],
   doubleVotePlayerId: gameRow.double_vote_player_id || null,
   cannotVotePlayerId: gameRow.cannot_vote_player_id || null,
   immunityPlayerId: gameRow.immunity_player_id || null,
@@ -382,9 +385,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // Round 2+: Any unrevealed characteristic (excluding restricted by action cards)
     let available = CHARACTERISTICS_ORDER.filter(c => !revealed.includes(c));
     
-    // Filter out restricted characteristic from action cards (cards 7, 8, 9)
-    if (gameState.roundRestriction) {
-      available = available.filter(c => c !== gameState.roundRestriction);
+    // Filter out restricted characteristics from action cards (cards 7, 8, 9)
+    if (gameState.roundRestrictions && gameState.roundRestrictions.length > 0) {
+      available = available.filter(c => !gameState.roundRestrictions.includes(c as any));
+    }
+    
+    // Filter out baggage if it was stolen (value is 'Украдено!')
+    if (player.characteristics.baggage === 'Украдено!') {
+      available = available.filter(c => c !== 'baggage');
     }
     
     return available;
@@ -424,11 +432,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       return characteristic === 'profession';
     }
 
-    // Check for round restriction from action cards (cards 7, 8, 9)
-    if (gameState.roundRestriction) {
-      if (gameState.roundRestriction === 'biology' && characteristic === 'biology') return false;
-      if (gameState.roundRestriction === 'hobby' && characteristic === 'hobby') return false;
-      if (gameState.roundRestriction === 'baggage' && characteristic === 'baggage') return false;
+    // Check for round restrictions from action cards (cards 7, 8, 9)
+    if (gameState.roundRestrictions && gameState.roundRestrictions.length > 0) {
+      if (gameState.roundRestrictions.includes('biology') && characteristic === 'biology') return false;
+      if (gameState.roundRestrictions.includes('hobby') && characteristic === 'hobby') return false;
+      if (gameState.roundRestrictions.includes('baggage') && characteristic === 'baggage') return false;
+    }
+    
+    // Check if baggage was stolen (can't reveal stolen baggage)
+    if (characteristic === 'baggage' && player.characteristics.baggage === 'Украдено!') {
+      return false;
     }
 
     return true;
